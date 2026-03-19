@@ -6,31 +6,37 @@ local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
-local StandData = require(ReplicatedStorage:WaitForChild("StandData"))
+
+-- Note: You'll need to rename StandData to TitanData in your ReplicatedStorage later, 
+-- but for now, we'll assume the require is updated to TitanData.
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local CombatCore = require(game:GetService("ServerScriptService"):WaitForChild("CombatCore"))
 
 local DungeonAction = Network:WaitForChild("DungeonAction")
 local DungeonUpdate = Network:WaitForChild("DungeonUpdate")
 
-local ActiveDungeons = {}
+local ActiveExpeditions = {} -- Renamed from ActiveDungeons structurally
 
+-- Build Endless Pool from Parts
 local EndlessPool = {}
-for p = 1, 6 do
+for p = 1, 7 do
 	if EnemyData.Parts[p] then
 		if EnemyData.Parts[p].Templates then for _, t in pairs(EnemyData.Parts[p].Templates) do table.insert(EndlessPool, t) end end
 		if EnemyData.Parts[p].Mobs then for _, m in pairs(EnemyData.Parts[p].Mobs) do table.insert(EndlessPool, m) end end
 	end
 end
 
-local function GenerateDungeonEnemy(template, dungeonId)
-	local fixedPrestige = tonumber(dungeonId) and (tonumber(dungeonId) + 4) or 5
+local function GenerateEnemy(template, partId)
+	local fixedPrestige = tonumber(partId) and (tonumber(partId) + 4) or 5
 	local scaleMult = 1 + (fixedPrestige * 0.15)
 	local minorScaleMult = 1 + ((scaleMult - 1) * 0.33) 
 
 	local eHP = template.Health * scaleMult
-	local eStr = (template.Strength + (GameData.StandRanks[template.StandStats.Power] or 0)) * scaleMult
-	local eDef = (template.Defense + (GameData.StandRanks[template.StandStats.Durability] or 0)) * scaleMult
-	local eSpd = (template.Speed + (GameData.StandRanks[template.StandStats.Speed] or 0)) * minorScaleMult
+
+	-- Swapped StandStats for TitanStats
+	local eStr = (template.Strength + (GameData.TitanRanks[template.TitanStats.Power] or 0)) * scaleMult
+	local eDef = (template.Defense + (GameData.TitanRanks[template.TitanStats.Hardening] or 0)) * scaleMult
+	local eSpd = (template.Speed + (GameData.TitanRanks[template.TitanStats.Speed] or 0)) * minorScaleMult
 
 	local dYen = math.floor((template.Drops and template.Drops.Yen or 0) * scaleMult)
 	local dXP = math.floor((template.Drops and template.Drops.XP or 0) * scaleMult)
@@ -40,41 +46,41 @@ local function GenerateDungeonEnemy(template, dungeonId)
 		IsBoss = template.IsBoss or false,
 		HP = eHP, MaxHP = eHP, TotalStrength = eStr, TotalDefense = eDef, TotalSpeed = eSpd,
 		TotalWillpower = (template.Willpower or 1) * minorScaleMult,
-		TotalRange = (GameData.StandRanks[template.StandStats.Range] or 0),
-		TotalPrecision = (GameData.StandRanks[template.StandStats.Precision] or 0),
+		TotalPrecision = (GameData.TitanRanks[template.TitanStats.Precision] or 0),
 		BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0,
 		Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0, Buff_Strength = 0, Buff_Defense = 0, Buff_Speed = 0, Buff_Willpower = 0, Debuff_Strength = 0, Debuff_Defense = 0, Debuff_Speed = 0, Debuff_Willpower = 0 },
-		Cooldowns = {}, Skills = template.Skills or {"Basic Attack"},
+		Cooldowns = {}, Skills = template.Skills or {"Basic Slash"},
 		RawDrops = { Yen = dYen, XP = dXP, ItemChance = template.Drops and template.Drops.ItemChance or {} }
 	}
 end
 
 local function GenerateRandomEndlessEnemy(floor)
-	local FirstNames = {"Crazed", "Menacing", "Wandering", "Furious", "Stoic", "Bizarre", "Ruthless", "Phantom", "Savage", "Silent"}
-	local LastNames = {"Thug", "Brawler", "Stand User", "Delinquent", "Fighter", "Vampire", "Warrior", "Assassin", "Mercenary"}
-	local Styles = {"Boxing", "Hamon", "Vampirism", "Pillarman", "Cyborg", "None"}
+	local FirstNames = {"Frenzied", "Menacing", "Wandering", "Furious", "Stoic", "Ruthless", "Savage", "Silent"}
+	local LastNames = {"Pure Titan", "Abnormal", "Marleyan Warrior", "Scout Traitor", "Anti-Personnel Guard"}
+	local Styles = {"Unarmed", "Ultrahard Steel Blades", "Thunder Spears", "Anti-Personnel Firearms", "Marleyan Rifle", "None"}
 
 	local isBossFloor = (floor % 10 == 0)
 	local eName = FirstNames[math.random(#FirstNames)] .. " " .. LastNames[math.random(#LastNames)]
 	if isBossFloor then eName = "Floor " .. floor .. " Guardian" end
 
-	local hasStand = math.random(1, 100) <= 70
-	local eStand = hasStand and StandData.RollStand() or "None"
-	local eTrait = hasStand and StandData.RollTrait() or "None"
+	-- Updated to roll Titans
+	local hasTitan = math.random(1, 100) <= 70
+	local eTitan = hasTitan and TitanData.RollTitan() or "None"
+	local eTrait = hasTitan and TitanData.RollTrait() or "None"
 	local eStyle = Styles[math.random(#Styles)]
 
 	local standardScale = (math.floor(1 + (floor/10))) * 0.5
 	local utilityScale = (math.floor(1 + (floor/10))) * 0.05
 
 	local bHP, bStr, bDef, bSpd, bWill = math.random(250, 2000), math.random(15, 150), math.random(10, 100), math.random(15, 150), math.random(10, 100)
-	local standPower, standSpeed, standDur, standRan, standPre = "None", "None", "None", "None", "None"
+	local titanPow, titanSpd, titanHard, titanPre = "None", "None", "None", "None"
 
-	if hasStand and StandData.Stands[eStand] then
-		local sStats = StandData.Stands[eStand].Stats
-		standPower, standSpeed, standDur, standRan, standPre = sStats.Power, sStats.Speed, sStats.Durability, sStats.Range, sStats.Precision
-		bStr += GameData.StandRanks[sStats.Power] or 0
-		bSpd += GameData.StandRanks[sStats.Speed] or 0
-		bDef += GameData.StandRanks[sStats.Durability] or 0
+	if hasTitan and TitanData.Titans[eTitan] then
+		local tStats = TitanData.Titans[eTitan].Stats
+		titanPow, titanSpd, titanHard, titanPre = tStats.Power, tStats.Speed, tStats.Hardening, tStats.Precision
+		bStr += GameData.TitanRanks[tStats.Power] or 0
+		bSpd += GameData.TitanRanks[tStats.Speed] or 0
+		bDef += GameData.TitanRanks[tStats.Hardening] or 0
 	end
 
 	local bossMult = isBossFloor and 2 or 1
@@ -86,21 +92,23 @@ local function GenerateRandomEndlessEnemy(floor)
 	local dYen = math.floor((15 + (bHP * 0.1)) * (1 + standardScale)) * bossMult
 	local dXP = math.floor((50 + (bHP * 0.4)) * (1 + standardScale)) * bossMult
 
-	local eSkills = {"Basic Attack", "Heavy Strike", "Block"}
+	local eSkills = {"Basic Slash", "Heavy Slash", "Block"}
 	for skillName, skillInfo in pairs(SkillData.Skills) do
 		local req = skillInfo.Requirement
-		if (req == "AnyStand" and hasStand) or (req == eStand and eStand ~= "None") or (req == eStyle and eStyle ~= "None") then table.insert(eSkills, skillName) end
+		if (req == "AnyTitan" and hasTitan) or (req == eTitan and eTitan ~= "None") or (req == eStyle and eStyle ~= "None") then 
+			table.insert(eSkills, skillName) 
+		end
 	end
 
 	local displayTrait = eTrait ~= "None" and " [" .. eTrait .. "]" or ""
 	local fullName = eName
-	if hasStand then fullName = fullName .. " (" .. eStand .. ")" .. displayTrait end
+	if hasTitan then fullName = fullName .. " (" .. eTitan .. ")" .. displayTrait end
 
 	return {
 		IsPlayer = false, Name = fullName, Trait = eTrait,
 		IsBoss = isBossFloor,
 		HP = eHP, MaxHP = eHP, TotalStrength = eStr, TotalDefense = eDef, TotalSpeed = eSpd, TotalWillpower = finalWill,
-		TotalRange = (GameData.StandRanks[standRan] or 0), TotalPrecision = (GameData.StandRanks[standPre] or 0),
+		TotalPrecision = (GameData.TitanRanks[titanPre] or 0),
 		BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0,
 		Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0, Buff_Strength = 0, Buff_Defense = 0, Buff_Speed = 0, Buff_Willpower = 0, Debuff_Strength = 0, Debuff_Defense = 0, Debuff_Speed = 0, Debuff_Willpower = 0 },
 		Cooldowns = {}, Skills = eSkills, RawDrops = { Yen = dYen, XP = dXP, ItemChance = {} }
@@ -132,45 +140,46 @@ local function StartDungeon(player, dungeonId)
 		if #waves == 0 then return end
 	end
 
-	local hasStand = (player:GetAttribute("Stand") or "None") ~= "None"
-	local sPow = hasStand and (player:GetAttribute("Stand_Power_Val") or 0) or 0
-	local sDur = hasStand and (player:GetAttribute("Stand_Durability_Val") or 0) or 0
-	local sSpd = hasStand and (player:GetAttribute("Stand_Speed_Val") or 0) or 0
-	local sPot = hasStand and (player:GetAttribute("Stand_Potential_Val") or 0) or 0
-	local sRan = hasStand and (player:GetAttribute("Stand_Range_Val") or 0) or 0
-	local sPre = hasStand and (player:GetAttribute("Stand_Precision_Val") or 0) or 0
+	-- Overhauled Player Extraction for AoT
+	local hasTitan = (player:GetAttribute("Titan") or "None") ~= "None"
+	local tPow = hasTitan and (player:GetAttribute("Titan_Power_Val") or 0) or 0
+	local tDur = hasTitan and (player:GetAttribute("Titan_Hardening_Val") or 0) or 0
+	local tSpd = hasTitan and (player:GetAttribute("Titan_Speed_Val") or 0) or 0
+	local tPot = hasTitan and (player:GetAttribute("Titan_Potential_Val") or 0) or 0
+	local tPre = hasTitan and (player:GetAttribute("Titan_Precision_Val") or 0) or 0
 
 	local pHP = (player:GetAttribute("Health") or 1) + CombatCore.GetEquipBonus(player, "Health")
-	local pStr = (player:GetAttribute("Strength") or 1) + sPow + CombatCore.GetEquipBonus(player, "Strength") + CombatCore.GetEquipBonus(player, "Stand_Power")
-	local pDef = (player:GetAttribute("Defense") or 1) + sDur + CombatCore.GetEquipBonus(player, "Defense") + CombatCore.GetEquipBonus(player, "Stand_Durability")
-	local pSpd = (player:GetAttribute("Speed") or 1) + sSpd + CombatCore.GetEquipBonus(player, "Speed") + CombatCore.GetEquipBonus(player, "Stand_Speed")
+	local pStr = (player:GetAttribute("Strength") or 1) + tPow + CombatCore.GetEquipBonus(player, "Strength") + CombatCore.GetEquipBonus(player, "Titan_Power")
+	local pDef = (player:GetAttribute("Defense") or 1) + tDur + CombatCore.GetEquipBonus(player, "Defense") + CombatCore.GetEquipBonus(player, "Titan_Hardening")
+	local pSpd = (player:GetAttribute("Speed") or 1) + tSpd + CombatCore.GetEquipBonus(player, "Speed") + CombatCore.GetEquipBonus(player, "Titan_Speed")
 	local pWill = (player:GetAttribute("Willpower") or 1) + CombatCore.GetEquipBonus(player, "Willpower")
 
-	local playerTrait = player:GetAttribute("StandTrait") or "None"
+	local playerTrait = player:GetAttribute("TitanTrait") or "None"
 	if playerTrait == "Tough" then pHP *= 1.1 end
 	if playerTrait == "Fierce" then pStr *= 1.1 end
 	if playerTrait == "Perseverance" then pHP *= 1.5; pWill *= 1.5 end
 
 	local pStamina = (player:GetAttribute("Stamina") or 1) + CombatCore.GetEquipBonus(player, "Stamina")
-	local pStandEnergy = 10 + sPot + CombatCore.GetEquipBonus(player, "Stand_Potential")
+	local pTitanEnergy = 10 + tPot + CombatCore.GetEquipBonus(player, "Titan_Potential")
 
 	if playerTrait == "Focused" then
-		pStamina *= 1.1; pStandEnergy *= 1.1
+		pStamina *= 1.1; pTitanEnergy *= 1.1
 	end
 
-	local firstEnemy = isEndless and GenerateRandomEndlessEnemy(1) or GenerateDungeonEnemy(waves[1], dungeonId)
+	local firstEnemy = isEndless and GenerateRandomEndlessEnemy(1) or GenerateEnemy(waves[1], dungeonId)
 	local activeBoosts = CombatCore.GetPlayerBoosts(player)
 
-	ActiveDungeons[player.UserId] = {
+	ActiveExpeditions[player.UserId] = {
 		DungeonId = dungeonId, IsEndless = isEndless, CurrentWave = 1, TotalWaves = isEndless and "8" or #waves, Waves = waves,
 		MasterDrops = { Yen = 0, XP = 0, ItemChance = {} }, IsProcessing = false, Boosts = activeBoosts, 
 		Player = {
 			IsPlayer = true, Name = player.Name, Trait = playerTrait, GlobalDmgBoost = activeBoosts.Damage, PlayerObj = player,
-			Stand = player:GetAttribute("Stand") or "None", Style = player:GetAttribute("FightingStyle") or "None",
-			HP = pHP * 10, MaxHP = pHP * 10, Stamina = pStamina, MaxStamina = pStamina, StandEnergy = pStandEnergy, MaxStandEnergy = pStandEnergy,
+			Titan = player:GetAttribute("Titan") or "None", Style = player:GetAttribute("FightingStyle") or "None",
+			HP = pHP * 10, MaxHP = pHP * 10, Stamina = pStamina, MaxStamina = pStamina, TitanEnergy = pTitanEnergy, MaxTitanEnergy = pTitanEnergy,
 			TotalStrength = pStr, TotalDefense = pDef, TotalSpeed = pSpd, TotalWillpower = pWill,
-			TotalRange = sRan + CombatCore.GetEquipBonus(player, "Stand_Range"), TotalPrecision = sPre + CombatCore.GetEquipBonus(player, "Stand_Precision"),
-			BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0, Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0, Buff_Strength = 0, Buff_Defense = 0, Buff_Speed = 0, Buff_Willpower = 0, Debuff_Strength = 0, Debuff_Defense = 0, Debuff_Speed = 0, Debuff_Willpower = 0 }, Cooldowns = {}
+			TotalPrecision = tPre + CombatCore.GetEquipBonus(player, "Titan_Precision"),
+			BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0, 
+			Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0, Buff_Strength = 0, Buff_Defense = 0, Buff_Speed = 0, Buff_Willpower = 0, Debuff_Strength = 0, Debuff_Defense = 0, Debuff_Speed = 0, Debuff_Willpower = 0 }, Cooldowns = {}
 		},
 		Enemy = firstEnemy
 	}
@@ -180,42 +189,42 @@ local function StartDungeon(player, dungeonId)
 		local scaleMult = 1 + (fixedPrestige * 0.15)
 		for _, waveTemplate in ipairs(waves) do
 			if waveTemplate.Drops then
-				ActiveDungeons[player.UserId].MasterDrops.Yen += math.floor((waveTemplate.Drops.Yen or 0) * scaleMult)
-				ActiveDungeons[player.UserId].MasterDrops.XP += math.floor((waveTemplate.Drops.XP or 0) * scaleMult)
+				ActiveExpeditions[player.UserId].MasterDrops.Yen += math.floor((waveTemplate.Drops.Yen or 0) * scaleMult)
+				ActiveExpeditions[player.UserId].MasterDrops.XP += math.floor((waveTemplate.Drops.XP or 0) * scaleMult)
 				if waveTemplate.Drops.ItemChance then
-					for item, ch in pairs(waveTemplate.Drops.ItemChance) do ActiveDungeons[player.UserId].MasterDrops.ItemChance[item] = math.min(100, (ActiveDungeons[player.UserId].MasterDrops.ItemChance[item] or 0) + ch) end
+					for item, ch in pairs(waveTemplate.Drops.ItemChance) do ActiveExpeditions[player.UserId].MasterDrops.ItemChance[item] = math.min(100, (ActiveExpeditions[player.UserId].MasterDrops.ItemChance[item] or 0) + ch) end
 				end
 			end
 		end
 	end
 
-	local startMsg = isEndless and "<font color='#FFD700'>Descending into the Endless Dungeon...</font>" or "<font color='#FFD700'>Starting Part " .. dungeonId .. " Gauntlet!</font>"
+	local startMsg = isEndless and "<font color='#FFD700'>Departing on an Endless Expedition...</font>" or "<font color='#FFD700'>Starting Campaign Mission " .. dungeonId .. "!</font>"
 	local waveStr = isEndless and "Floor 1" or "Wave 1/" .. #waves
-	DungeonUpdate:FireClient(player, "Start", { Battle = ActiveDungeons[player.UserId], LogMsg = startMsg, WaveStr = waveStr })
+	DungeonUpdate:FireClient(player, "Start", { Battle = ActiveExpeditions[player.UserId], LogMsg = startMsg, WaveStr = waveStr })
 end
 
 DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if actionType == "StartDungeon" then StartDungeon(player, actionData); return end
 
-	local dungeon = ActiveDungeons[player.UserId]
+	local dungeon = ActiveExpeditions[player.UserId]
 	if not dungeon or dungeon.IsProcessing or actionType ~= "Attack" then return end
 
 	local skillName = actionData
 	local skill = SkillData.Skills[skillName]
 
-	if dungeon.IsEndless and skill and skill.Effect == "Flee" then
-		return
-	end
+	if dungeon.IsEndless and skill and skill.Effect == "Flee" then return end
 
+	-- Updated to AnyTitan checks
 	if skill and skill.Requirement ~= "None" then
-		if skill.Requirement == "AnyStand" then
-			if dungeon.Player.Stand == "None" then return end
-		elseif skill.Requirement ~= dungeon.Player.Stand and skill.Requirement ~= dungeon.Player.Style then
+		if skill.Requirement == "AnyTitan" then
+			if dungeon.Player.Titan == "None" then return end
+		elseif skill.Requirement ~= dungeon.Player.Titan and skill.Requirement ~= dungeon.Player.Style then
 			return
 		end
 	end
 
-	if not skill or dungeon.Player.Stamina < (skill.StaminaCost or 0) or dungeon.Player.StandEnergy < (skill.EnergyCost or 0) then return end
+	-- Using TitanEnergy instead of StandEnergy
+	if not skill or dungeon.Player.Stamina < (skill.StaminaCost or 0) or dungeon.Player.TitanEnergy < (skill.EnergyCost or 0) then return end
 	if dungeon.Player.Cooldowns[skillName] and dungeon.Player.Cooldowns[skillName] > 0 then return end
 
 	dungeon.IsProcessing = true
@@ -263,7 +272,7 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			combatant.Statuses.Stun -= 1
 			if combatant.IsPlayer then
 				combatant.Stamina = math.min(combatant.MaxStamina, combatant.Stamina + 5)
-				combatant.StandEnergy = math.min(combatant.MaxStandEnergy, combatant.StandEnergy + 5)
+				combatant.TitanEnergy = math.min(combatant.MaxTitanEnergy, combatant.TitanEnergy + 5)
 			end
 			DungeonUpdate:FireClient(player, "TurnStrike", {Battle = dungeon, LogMsg = "<font color='#AAAAAA'>"..combatant.Name.." is Stunned and cannot move!</font>", DidHit = false, ShakeType = "None"})
 			task.wait(waitMultiplier); continue
@@ -271,10 +280,10 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 		if combatant.IsPlayer then
 			if skill.Effect == "Flee" then
-				DungeonUpdate:FireClient(player, "TurnStrike", {Battle = dungeon, LogMsg = "<font color='#AAAAAA'>You fled the dungeon!</font>", DidHit = false, ShakeType = "None"})
+				DungeonUpdate:FireClient(player, "TurnStrike", {Battle = dungeon, LogMsg = "<font color='#AAAAAA'>You fired a smoke signal and retreated!</font>", DidHit = false, ShakeType = "None"})
 				task.wait(waitMultiplier)
 				DungeonUpdate:FireClient(player, "Fled", {Battle = dungeon})
-				ActiveDungeons[player.UserId] = nil
+				ActiveExpeditions[player.UserId] = nil
 				return
 			end
 			DispatchStrike(dungeon.Player, dungeon.Enemy, skillName)
@@ -294,19 +303,20 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			if clearedFloors > hs then player:SetAttribute("EndlessHighScore", clearedFloors) end
 			local clearedTens = math.floor(clearedFloors / 10)
 			if clearedTens > 0 then
-				local bonusArrows = math.random(0, clearedTens)
-				if bonusArrows > 0 then
-					player:SetAttribute("StandArrowCount", (player:GetAttribute("StandArrowCount") or 0) + bonusArrows)
-					table.insert(dropPack.Items, "<font color='#55FFFF'>" .. bonusArrows .. "x Bonus Stand Arrow(s)</font>")
+				local bonusSerums = math.random(0, clearedTens)
+				if bonusSerums > 0 then
+					player:SetAttribute("StandardTitanSerumCount", (player:GetAttribute("StandardTitanSerumCount") or 0) + bonusSerums)
+					table.insert(dropPack.Items, "<font color='#55FFFF'>" .. bonusSerums .. "x Bonus Titan Serum(s)</font>")
 				end
 			end
 		end
 		DungeonUpdate:FireClient(player, "Defeat", {Battle = dungeon, Drops = dropPack})
-		ActiveDungeons[player.UserId] = nil
+		ActiveExpeditions[player.UserId] = nil
 
 	elseif dungeon.Enemy.HP < 1 then
-		local gangEvent = Network:FindFirstChild("AddGangOrderProgress")
-		if gangEvent then gangEvent:Fire(player:GetAttribute("Gang"), "Dungeons", 1) end
+		-- Clan Progression (Formerly Gang)
+		local clanEvent = Network:FindFirstChild("AddClanOrderProgress")
+		if clanEvent then clanEvent:Fire(player:GetAttribute("Clan"), "Expeditions", 1) end
 
 		if dungeon.IsEndless then
 			local fXP = math.floor(dungeon.Enemy.RawDrops.XP * dungeon.Boosts.XP)
@@ -316,10 +326,10 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 
 			local droppedItems = {}
 			if dungeon.CurrentWave % 10 == 0 then
-				player:SetAttribute("RokakakaCount", (player:GetAttribute("RokakakaCount") or 0) + 1)
-				table.insert(droppedItems, "<font color='#FF55FF'>[MILESTONE REWARD] Rokakaka</font>")
-				player:SetAttribute("StandArrowCount", (player:GetAttribute("StandArrowCount") or 0) + 1)
-				table.insert(droppedItems, "<font color='#55FFFF'>1x Stand Arrow</font>")
+				player:SetAttribute("FoundersMemoryWipeCount", (player:GetAttribute("FoundersMemoryWipeCount") or 0) + 1)
+				table.insert(droppedItems, "<font color='#FF55FF'>[MILESTONE REWARD] Founder's Memory Wipe</font>")
+				player:SetAttribute("StandardTitanSerumCount", (player:GetAttribute("StandardTitanSerumCount") or 0) + 1)
+				table.insert(droppedItems, "<font color='#55FFFF'>1x Standard Titan Serum</font>")
 			end
 
 			local hs = player:GetAttribute("EndlessHighScore") or 0
@@ -339,7 +349,7 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			if dungeon.CurrentWave < dungeon.TotalWaves then
 				dungeon.CurrentWave += 1
 				local nextTemplate = dungeon.Waves[dungeon.CurrentWave]
-				dungeon.Enemy = GenerateDungeonEnemy(nextTemplate, dungeon.DungeonId)
+				dungeon.Enemy = GenerateEnemy(nextTemplate, dungeon.DungeonId)
 				dungeon.IsProcessing = false
 				DungeonUpdate:FireClient(player, "WaveComplete", { Battle = dungeon, LogMsg = "<font color='#FFD700'>A new enemy approaches!</font>", WaveStr = "Wave " .. dungeon.CurrentWave .. "/" .. dungeon.TotalWaves })
 				return
@@ -359,7 +369,7 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 					if math.random(1, 100) <= boostedChance then
 						local itemData = ItemData.Equipment[itemName] or ItemData.Consumables[itemName]
 						local itemRarity = itemData and itemData.Rarity or "Common"
-						local isIgnored = (itemName == "Stand Arrow" or itemName == "Rokakaka" or itemName == "Heavenly Stand Disc" or itemName == "Saint's Corpse Part")
+						local isIgnored = (itemName == "Standard Titan Serum" or itemName == "Founder's Memory Wipe" or itemName == "Spinal Fluid Syringe" or itemName == "Ymir's Clay Fragment")
 
 						if player:GetAttribute("AutoSell_" .. itemRarity) and not isIgnored then
 							local sellVal = itemData and (itemData.SellPrice or math.floor((itemData.Cost or 50) / 2)) or 25
@@ -382,24 +392,24 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 					end
 				end
 
-				local clearAttr = "DungeonClear_Part" .. dungeon.DungeonId
+				local clearAttr = "CampaignClear_Part" .. dungeon.DungeonId
 				if not player:GetAttribute(clearAttr) then
 					player:SetAttribute(clearAttr, true)
-					player:SetAttribute("RokakakaCount", (player:GetAttribute("RokakakaCount") or 0) + 1)
-					table.insert(droppedItems, "<font color='#FF55FF'>[FIRST CLEAR] Rokakaka</font>")
+					player:SetAttribute("FoundersMemoryWipeCount", (player:GetAttribute("FoundersMemoryWipeCount") or 0) + 1)
+					table.insert(droppedItems, "<font color='#FF55FF'>[FIRST CLEAR] Founder's Memory Wipe</font>")
 				end
 
 				local finalPack = { XP = fXP, Yen = fYen, Items = droppedItems }
 				DungeonUpdate:FireClient(player, "Victory", {Battle = dungeon, Drops = finalPack})
-				ActiveDungeons[player.UserId] = nil
+				ActiveExpeditions[player.UserId] = nil
 			end
 		end
 	else
 		if skill.StaminaCost == 0 then dungeon.Player.Stamina = math.min(dungeon.Player.MaxStamina, dungeon.Player.Stamina + 5) end
-		if skill.EnergyCost == 0 then dungeon.Player.StandEnergy = math.min(dungeon.Player.MaxStandEnergy, dungeon.Player.StandEnergy + 5) end
+		if skill.EnergyCost == 0 then dungeon.Player.TitanEnergy = math.min(dungeon.Player.MaxTitanEnergy, dungeon.Player.TitanEnergy + 5) end
 		if dungeon.Player.Trait == "Vigorous" then
 			dungeon.Player.Stamina = math.min(dungeon.Player.MaxStamina, dungeon.Player.Stamina + 10)
-			dungeon.Player.StandEnergy = math.min(dungeon.Player.MaxStandEnergy, dungeon.Player.StandEnergy + 10)
+			dungeon.Player.TitanEnergy = math.min(dungeon.Player.MaxTitanEnergy, dungeon.Player.TitanEnergy + 10)
 		end
 
 		dungeon.IsProcessing = false
@@ -408,5 +418,5 @@ DungeonAction.OnServerEvent:Connect(function(player, actionType, actionData)
 end)
 
 game.Players.PlayerRemoving:Connect(function(player)
-	ActiveDungeons[player.UserId] = nil
+	ActiveExpeditions[player.UserId] = nil
 end)
