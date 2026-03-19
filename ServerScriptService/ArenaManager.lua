@@ -1,4 +1,5 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
@@ -68,20 +69,20 @@ local function UpdateTeamElo(winningTeam, losingTeam)
 end
 
 local function BuildPlayerStruct(player)
-	local playerTrait = player:GetAttribute("StandTrait") or "None"
-	local hasStand = (player:GetAttribute("Stand") or "None") ~= "None"
+	-- Swapped Stand to Titan
+	local playerTrait = player:GetAttribute("TitanTrait") or "None"
+	local hasTitan = (player:GetAttribute("Titan") or "None") ~= "None"
 
-	local sPow = hasStand and (player:GetAttribute("Stand_Power_Val") or 0) or 0
-	local sDur = hasStand and (player:GetAttribute("Stand_Durability_Val") or 0) or 0
-	local sSpd = hasStand and (player:GetAttribute("Stand_Speed_Val") or 0) or 0
-	local sPot = hasStand and (player:GetAttribute("Stand_Potential_Val") or 0) or 0
-	local sRan = hasStand and (player:GetAttribute("Stand_Range_Val") or 0) or 0
-	local sPre = hasStand and (player:GetAttribute("Stand_Precision_Val") or 0) or 0
+	local tPow = hasTitan and (player:GetAttribute("Titan_Power_Val") or 0) or 0
+	local tDur = hasTitan and (player:GetAttribute("Titan_Hardening_Val") or 0) or 0
+	local tSpd = hasTitan and (player:GetAttribute("Titan_Speed_Val") or 0) or 0
+	local tPot = hasTitan and (player:GetAttribute("Titan_Potential_Val") or 0) or 0
+	local tPre = hasTitan and (player:GetAttribute("Titan_Precision_Val") or 0) or 0
 
 	local pHP = (player:GetAttribute("Health") or 1) + CombatCore.GetEquipBonus(player, "Health")
-	local pStr = (player:GetAttribute("Strength") or 1) + sPow + CombatCore.GetEquipBonus(player, "Strength") + CombatCore.GetEquipBonus(player, "Stand_Power")
-	local pDef = (player:GetAttribute("Defense") or 1) + sDur + CombatCore.GetEquipBonus(player, "Defense") + CombatCore.GetEquipBonus(player, "Stand_Durability")
-	local pSpd = (player:GetAttribute("Speed") or 1) + sSpd + CombatCore.GetEquipBonus(player, "Speed") + CombatCore.GetEquipBonus(player, "Stand_Speed")
+	local pStr = (player:GetAttribute("Strength") or 1) + tPow + CombatCore.GetEquipBonus(player, "Strength") + CombatCore.GetEquipBonus(player, "Titan_Power")
+	local pDef = (player:GetAttribute("Defense") or 1) + tDur + CombatCore.GetEquipBonus(player, "Defense") + CombatCore.GetEquipBonus(player, "Titan_Hardening")
+	local pSpd = (player:GetAttribute("Speed") or 1) + tSpd + CombatCore.GetEquipBonus(player, "Speed") + CombatCore.GetEquipBonus(player, "Titan_Speed")
 	local pWill = (player:GetAttribute("Willpower") or 1) + CombatCore.GetEquipBonus(player, "Willpower")
 
 	if playerTrait == "Tough" then pHP *= 1.1 end
@@ -89,25 +90,45 @@ local function BuildPlayerStruct(player)
 	if playerTrait == "Perseverance" then pHP *= 1.5; pWill *= 1.5 end
 
 	local pStamina = (player:GetAttribute("Stamina") or 1) + CombatCore.GetEquipBonus(player, "Stamina")
-	local pStandEnergy = 10 + sPot + CombatCore.GetEquipBonus(player, "Stand_Potential")
+	local pTitanEnergy = 10 + tPot + CombatCore.GetEquipBonus(player, "Titan_Potential")
 
-	if playerTrait == "Focused" then pStamina *= 1.1; pStandEnergy *= 1.1 end
+	if playerTrait == "Focused" then pStamina *= 1.1; pTitanEnergy *= 1.1 end
+
+	-- ROLLABLE CLAN BUFFS (Ackerman, Yeager, Tybur, etc.)
+	local clan = player:GetAttribute("Clan") or "None"
+	if clan == "Ackerman" then
+		pStr *= 1.15 -- 15% Bonus Strength
+		pSpd *= 1.15 -- 15% Bonus Speed
+	elseif clan == "Yeager" then
+		pWill *= 1.25 -- Massive Willpower (Freedom)
+		pStr *= 1.05
+	elseif clan == "Tybur" then
+		pDef *= 1.15 -- Hardening Mastery
+		tDur += 10
+	elseif clan == "Arlert" then
+		pTitanEnergy *= 1.25 -- High Tactical Potential
+	elseif clan == "Reiss" then
+		pHP *= 1.20 -- Royal Blood Vitality
+	elseif clan == "Braun" then
+		pDef *= 1.25 -- Armored Lineage
+	elseif clan == "Galliard" then
+		pSpd *= 1.20 -- Agile Lineage
+	end
 
 	local elo = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Elo") and player.leaderstats.Elo.Value or 1000
 	local eloDmgBoost = elo >= 5000 and 1.05 or 1.0
-	local gangDmgBoost = player:GetAttribute("GangDmgBoost") or 1.0
 
 	return {
 		Player = player, PlayerObj = player, UserId = player.UserId, Name = player.Name,
-		Trait = playerTrait, GlobalDmgBoost = gangDmgBoost * eloDmgBoost,
-		Stand = player:GetAttribute("Stand") or "None", Style = player:GetAttribute("FightingStyle") or "None",
+		Trait = playerTrait, GlobalDmgBoost = eloDmgBoost,
+		Titan = player:GetAttribute("Titan") or "None", Style = player:GetAttribute("FightingStyle") or "None",
+		Clan = clan,
 		HP = pHP * 10, MaxHP = pHP * 10,
 		Stamina = pStamina, MaxStamina = pStamina,
-		StandEnergy = pStandEnergy, MaxStandEnergy = pStandEnergy,
+		TitanEnergy = pTitanEnergy, MaxTitanEnergy = pTitanEnergy,
 		TotalStrength = pStr, TotalDefense = pDef, TotalSpeed = pSpd,
 		TotalWillpower = pWill,
-		TotalRange = sRan + CombatCore.GetEquipBonus(player, "Stand_Range"),
-		TotalPrecision = sPre + CombatCore.GetEquipBonus(player, "Stand_Precision"),
+		TotalPrecision = tPre + CombatCore.GetEquipBonus(player, "Titan_Precision"),
 		BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0,
 		Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0, Buff_Strength = 0, Buff_Defense = 0, Buff_Speed = 0, Buff_Willpower = 0, Debuff_Strength = 0, Debuff_Defense = 0, Debuff_Speed = 0, Debuff_Willpower = 0 },
 		Cooldowns = {}, SelectedSkill = nil, SelectedTargetId = nil
@@ -133,8 +154,9 @@ local function GetClientState(match, requestingPlayer, isSpectator)
 
 	local state = { MyTeam = {}, EnemyTeam = {}, MyId = requestingPlayer.UserId, IsSpectator = isSpectator, Pool1 = match.Pool1, Pool2 = match.Pool2, MatchId = match.Id }
 
-	for _, p in ipairs(myTeamStruct) do table.insert(state.MyTeam, { UserId = p.UserId, Name = p.Name, HP = p.HP, MaxHP = p.MaxHP, Stamina = p.Stamina, StandEnergy = p.StandEnergy, Cooldowns = p.Cooldowns, BlockTurns = p.BlockTurns, StunImmunity = p.StunImmunity, ConfusionImmunity = p.ConfusionImmunity, Stand = p.Stand, Style = p.Style, Statuses = p.Statuses }) end
-	for _, p in ipairs(enemyTeamStruct) do table.insert(state.EnemyTeam, { UserId = p.UserId, Name = p.Name, HP = p.HP, MaxHP = p.MaxHP, StunImmunity = p.StunImmunity, ConfusionImmunity = p.ConfusionImmunity, Stand = p.Stand, Style = p.Style, Statuses = p.Statuses }) end
+	-- Passed Titan and TitanEnergy
+	for _, p in ipairs(myTeamStruct) do table.insert(state.MyTeam, { UserId = p.UserId, Name = p.Name, HP = p.HP, MaxHP = p.MaxHP, Stamina = p.Stamina, TitanEnergy = p.TitanEnergy, Cooldowns = p.Cooldowns, BlockTurns = p.BlockTurns, StunImmunity = p.StunImmunity, ConfusionImmunity = p.ConfusionImmunity, Titan = p.Titan, Style = p.Style, Clan = p.Clan, Statuses = p.Statuses }) end
+	for _, p in ipairs(enemyTeamStruct) do table.insert(state.EnemyTeam, { UserId = p.UserId, Name = p.Name, HP = p.HP, MaxHP = p.MaxHP, StunImmunity = p.StunImmunity, ConfusionImmunity = p.ConfusionImmunity, Titan = p.Titan, Style = p.Style, Clan = p.Clan, Statuses = p.Statuses }) end
 
 	return state
 end
@@ -206,7 +228,7 @@ local function ProcessTurn(match)
 			table.insert(logMessages, "<font color='#00FFFF'>"..attacker.Name.." took "..math.floor(dmg).." Freeze damage and is frozen solid!"..svMsg.."</font>")
 			if attacker.HP < 1 then continue end
 			attacker.Stamina = math.min(attacker.MaxStamina, attacker.Stamina + 5)
-			attacker.StandEnergy = math.min(attacker.MaxStandEnergy, attacker.StandEnergy + 5)
+			attacker.TitanEnergy = math.min(attacker.MaxTitanEnergy, attacker.TitanEnergy + 5)
 			attacker.SelectedSkill = nil 
 			continue
 		end
@@ -215,7 +237,7 @@ local function ProcessTurn(match)
 			attacker.Statuses.Stun -= 1
 			table.insert(logMessages, "<font color='#AAAAAA'>"..attacker.Name.." is Stunned and skips their turn!</font>")
 			attacker.Stamina = math.min(attacker.MaxStamina, attacker.Stamina + 5)
-			attacker.StandEnergy = math.min(attacker.MaxStandEnergy, attacker.StandEnergy + 5)
+			attacker.TitanEnergy = math.min(attacker.MaxTitanEnergy, attacker.TitanEnergy + 5)
 			attacker.SelectedSkill = nil 
 			continue
 		end
@@ -223,8 +245,8 @@ local function ProcessTurn(match)
 		local skillName = attacker.SelectedSkill
 		local skill = SkillData.Skills[skillName]
 		if skill then
-			if skillName == "Flee" or skill.Effect == "Flee" then 
-				attacker.HP = 0; table.insert(logMessages, "<font color='#FF5555'>"..attacker.Name.." fled!</font>"); continue 
+			if skillName == "Retreat" or skill.Effect == "Flee" then 
+				attacker.HP = 0; table.insert(logMessages, "<font color='#FF5555'>"..attacker.Name.." fired a smoke signal and retreated!</font>"); continue 
 			end
 		end
 
@@ -268,12 +290,12 @@ local function ProcessTurn(match)
 		local sk = SkillData.Skills[combatant.SelectedSkill]
 		if sk then
 			if sk.StaminaCost == 0 then combatant.Stamina = math.min(combatant.MaxStamina, combatant.Stamina + 5) end
-			if sk.EnergyCost == 0 then combatant.StandEnergy = math.min(combatant.MaxStandEnergy, combatant.StandEnergy + 5) end
+			if sk.EnergyCost == 0 then combatant.TitanEnergy = math.min(combatant.MaxTitanEnergy, combatant.TitanEnergy + 5) end
 		end
 
 		if combatant.Trait == "Vigorous" then
 			combatant.Stamina = math.min(combatant.MaxStamina, combatant.Stamina + 10)
-			combatant.StandEnergy = math.min(combatant.MaxStandEnergy, combatant.StandEnergy + 10)
+			combatant.TitanEnergy = math.min(combatant.MaxTitanEnergy, combatant.TitanEnergy + 10)
 		end
 
 		combatant.SelectedSkill = nil
@@ -295,13 +317,8 @@ local function ProcessTurn(match)
 		local lMsg = match.IsCasual and "YOUR TEAM LOST! (Casual)" or "YOUR TEAM LOST! (-"..lLoss.." Elo)"
 
 		for _, pData in ipairs(winningTeam) do
-			local gangEvent = Network:FindFirstChild("AddGangOrderProgress")
-			if gangEvent then gangEvent:Fire(pData.Player:GetAttribute("Gang"), "Arena", 1) end
-
 			ArenaUpdate:FireClient(pData.Player, "MatchOver", {Result = "Win", EloChange = wGain, LogMsg = logStr .. "\n\n<font color='#55FF55'>"..wMsg.."</font>"})
 			ActiveMatches[pData.Player] = nil
-			local repEvent = ReplicatedStorage:FindFirstChild("AwardGangReputation")
-			if repEvent then repEvent:Fire(pData.Player.UserId, 10) end
 		end
 
 		for _, pData in ipairs(losingTeam) do
@@ -355,7 +372,7 @@ task.spawn(function()
 					local allCombatants = {}
 					for _, p in ipairs(match.Team1) do table.insert(allCombatants, p) end
 					for _, p in ipairs(match.Team2) do table.insert(allCombatants, p) end
-					for _, p in ipairs(allCombatants) do if p.HP > 0 and not p.SelectedSkill then p.SelectedSkill = "Basic Attack" end end
+					for _, p in ipairs(allCombatants) do if p.HP > 0 and not p.SelectedSkill then p.SelectedSkill = "Basic Slash" end end
 					task.defer(function() ProcessTurn(match) end)
 				end
 			end
@@ -433,8 +450,8 @@ ArenaAction.OnServerEvent:Connect(function(player, action, data)
 			for _, pData in ipairs(t1) do ActiveMatches[pData.Player] = match end
 			for _, pData in ipairs(t2) do ActiveMatches[pData.Player] = match end
 
-			for _, pData in ipairs(match.Team1) do ArenaUpdate:FireClient(pData.Player, "MatchStart", { State = GetClientState(match, pData.Player, false), LogMsg = "The team battle begins!", Deadline = match.TurnDeadline }) end
-			for _, pData in ipairs(match.Team2) do ArenaUpdate:FireClient(pData.Player, "MatchStart", { State = GetClientState(match, pData.Player, false), LogMsg = "The team battle begins!", Deadline = match.TurnDeadline }) end
+			for _, pData in ipairs(match.Team1) do ArenaUpdate:FireClient(pData.Player, "MatchStart", { State = GetClientState(match, pData.Player, false), LogMsg = "The expedition battle begins!", Deadline = match.TurnDeadline }) end
+			for _, pData in ipairs(match.Team2) do ArenaUpdate:FireClient(pData.Player, "MatchStart", { State = GetClientState(match, pData.Player, false), LogMsg = "The expedition battle begins!", Deadline = match.TurnDeadline }) end
 
 			OpenLobbies[data.HostId] = nil
 			ArenaUpdate:FireAllClients("LobbiesUpdate", GetLobbyData())
@@ -485,15 +502,17 @@ ArenaAction.OnServerEvent:Connect(function(player, action, data)
 		local targetId = data.TargetUserId
 		local skill = SkillData.Skills[skillName]
 
+		-- Swapped AnyStand to AnyTitan
 		if skill and skill.Requirement ~= "None" then
-			if skill.Requirement == "AnyStand" then
-				if combatant.Stand == "None" then return end
-			elseif skill.Requirement ~= combatant.Stand and skill.Requirement ~= combatant.Style then
+			if skill.Requirement == "AnyTitan" then
+				if combatant.Titan == "None" then return end
+			elseif skill.Requirement ~= combatant.Titan and skill.Requirement ~= combatant.Style then
 				return
 			end
 		end
 
-		if not skill or combatant.Stamina < (skill.StaminaCost or 0) or combatant.StandEnergy < (skill.EnergyCost or 0) or (combatant.Cooldowns[skillName] and combatant.Cooldowns[skillName] > 0) then return end
+		-- Using TitanEnergy
+		if not skill or combatant.Stamina < (skill.StaminaCost or 0) or combatant.TitanEnergy < (skill.EnergyCost or 0) or (combatant.Cooldowns[skillName] and combatant.Cooldowns[skillName] > 0) then return end
 
 		combatant.SelectedSkill = skillName; combatant.SelectedTargetId = targetId
 
@@ -540,7 +559,7 @@ game.Players.PlayerRemoving:Connect(function(player)
 
 		if combatant then
 			combatant.HP = 0
-			combatant.SelectedSkill = "Flee"
+			combatant.SelectedSkill = "Retreat"
 			if not match.IsProcessing then
 				local allReady = true
 				for _, p in ipairs(match.Team1) do if p.HP > 0 and not p.SelectedSkill then allReady = false break end end
