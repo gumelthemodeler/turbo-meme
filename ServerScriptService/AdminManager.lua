@@ -15,11 +15,12 @@ if not NotificationEvent then
 end
 
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
-local StandData = require(ReplicatedStorage:WaitForChild("StandData"))
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 
-local GangStore = DataStoreService:GetDataStore("Jojo_Gangs_V3")
+-- Updated to AoT DS
+local ClanStore = DataStoreService:GetDataStore("AoT_Clans_V1")
 
 local ADMIN_IDS = {
 	[342662401] = true
@@ -59,9 +60,9 @@ local function GetProperItemName(inputStr)
 	return nil
 end
 
-local function GetProperStandName(inputStr)
+local function GetProperTitanName(inputStr)
 	local search = string.lower(inputStr)
-	for key, _ in pairs(StandData.Stands) do
+	for key, _ in pairs(TitanData.Titans) do
 		if string.lower(key) == search then return key end
 	end
 	return nil
@@ -70,7 +71,7 @@ end
 local function GetProperStyleName(inputStr)
 	local search = string.lower(inputStr)
 	if search == "none" then return "None" end
-	for key, _ in pairs(GameData.StyleBonuses) do
+	for key, _ in pairs(GameData.WeaponBonuses) do
 		if string.lower(key) == search then return key end
 	end
 	return nil
@@ -82,9 +83,9 @@ local function GetProperTraitName(inputStr)
 		"None", 
 		"Swift", "Tough", "Fierce", "Focused", "Lucky",
 		"Armored", "Brutal", "Vigorous", "Evasive",
-		"Indomitable", "Relentless", "Flaming", "Toxic", "Electric", "Frozen", "Serrated", "Disorienting",
-		"Lethal", "Vampiric", "Overwhelming", "Gambler", "Gloomy", "Cheerful", "Blessed", 
-		"Perseverance", "Requiem", "Overheaven"
+		"Indomitable", "Relentless", "Flaming", "Toxic", "Concussive", "Crystalline", "Serrated", "Disorienting",
+		"Lethal", "Bloodthirsty", "Overwhelming", "Gambler", "Gloomy", "Cheerful", "Blessed", 
+		"Perseverance", "Transcendent", "Awakened"
 	}
 
 	for _, t in ipairs(validTraits) do
@@ -118,27 +119,26 @@ local function GetProperPassAttr(inputStr)
 		["2xinventory"] = "Has2xInventory",
 		["2xdrops"] = "Has2xDropChance",
 		["autotrain"] = "HasAutoTraining",
-		["styleslot2"] = "HasStyleSlot2", ["standslot2"] = "HasStandSlot2",
-		["styleslot3"] = "HasStyleSlot3", ["standslot3"] = "HasStandSlot3",
-		["autoroll"] = "HasAutoRoll",
-		["horsename"] = "HasHorseNamePass"
+		["styleslot2"] = "HasStyleSlot2", ["titanslot2"] = "HasTitanSlot2",
+		["styleslot3"] = "HasStyleSlot3", ["titanslot3"] = "HasTitanSlot3",
+		["autoroll"] = "HasAutoRoll"
 	}
 	return passMap[search]
 end
 
-local function GrantStand(playerObj, standName)
-	if not StandData.Stands[standName] then return false end
+local function GrantTitan(playerObj, titanName)
+	if not TitanData.Titans[titanName] then return false end
 
-	playerObj:SetAttribute("Stand", standName)
+	playerObj:SetAttribute("Titan", titanName)
 
 	local prestigeObj = playerObj:WaitForChild("leaderstats") and playerObj.leaderstats:WaitForChild("Prestige")
 	local prestige = prestigeObj and prestigeObj.Value or 0
-	local stats = StandData.Stands[standName].Stats
+	local stats = TitanData.Titans[titanName].Stats
 
 	for sName, sRank in pairs(stats) do
-		local baseVal = (prestige == 0) and (GameData.StandRanks[sRank] or 0) or (prestige * 5)
-		playerObj:SetAttribute("Stand_" .. sName, sRank)
-		playerObj:SetAttribute("Stand_" .. sName .. "_Val", baseVal)
+		local baseVal = (prestige == 0) and (GameData.TitanRanks[sRank] or 0) or (prestige * 5)
+		playerObj:SetAttribute("Titan_" .. sName, sRank)
+		playerObj:SetAttribute("Titan_" .. sName .. "_Val", baseVal)
 	end
 
 	return true
@@ -156,7 +156,7 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 	local displayTarget = ""
 	local actualSenderName = senderName or (adminPlayer and adminPlayer.Name) or "System"
 
-	if cmd ~= "!deletegang" and cmd ~= "!announcement" and cmd ~= "!addrep" and cmd ~= "!spawnwb" then
+	if cmd ~= "!deleteclan" and cmd ~= "!announcement" and cmd ~= "!addrep" and cmd ~= "!spawnwb" then
 		if targetStr == "@all" then
 			targets = Players:GetPlayers()
 			displayTarget = "everyone in the game"
@@ -183,9 +183,6 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 		end
 	end
 
-	local isMassEvent = (targetStr == "@all" or targetStr == "@server" or isFromCrossServer)
-	local eventTag = (isFromCrossServer or targetStr == "@all") and "GLOBAL EVENT" or "SERVER EVENT"
-
 	if cmd == "!announcement" then
 		local announcementText = table.concat(parts, " ", 2)
 		for _, p in ipairs(Players:GetPlayers()) do
@@ -198,15 +195,10 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 		if forceEvent then
 			local rawBossName = parts[2] and table.concat(parts, " ", 2) or nil
 			local properBossName = GetProperWorldBossName(rawBossName)
-
 			forceEvent:Fire(properBossName)
-
 			if adminPlayer then 
-				if properBossName then
-					SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-spawned specific World Boss ("..properBossName..") globally!</font>") 
-				else
-					SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-spawned a random World Boss globally!</font>") 
-				end
+				if properBossName then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-spawned World Boss ("..properBossName..") globally!</font>") 
+				else SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-spawned a random World Boss globally!</font>") end
 			end
 		end
 
@@ -241,23 +233,23 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 			end
 			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Gave GamePass '" .. properAttr .. "' to " .. displayTarget .. "!</font>") end
 		else
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Invalid Pass. Try: speed, inventory, drops, autotrain, slot2, slot3.</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Invalid Pass.</font>") end
 		end
 
-	elseif cmd == "!setstand" then
+	elseif cmd == "!settitan" then
 		local rawName = table.concat(parts, " ", 3)
-		local properName = GetProperStandName(rawName)
+		local properName = GetProperTitanName(rawName)
 
 		if properName then
 			for _, target in ipairs(targets) do
-				GrantStand(target, properName)
+				GrantTitan(target, properName)
 				if isMassEvent and target ~= adminPlayer then
-					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Stand was set to: " .. properName .. "!</font>")
+					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Titan was set to: " .. properName .. "!</font>")
 				end
 			end
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Stand " .. properName .. " for " .. displayTarget .. "!</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Titan " .. properName .. " for " .. displayTarget .. "!</font>") end
 		else
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Stand '" .. rawName .. "' does not exist.</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Titan '" .. rawName .. "' does not exist.</font>") end
 		end
 
 	elseif cmd == "!setstyle" then
@@ -268,12 +260,12 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 			for _, target in ipairs(targets) do
 				target:SetAttribute("FightingStyle", properName)
 				if isMassEvent and target ~= adminPlayer then
-					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Fighting Style was set to: " .. properName .. "!</font>")
+					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Combat Style was set to: " .. properName .. "!</font>")
 				end
 			end
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Fighting Style " .. properName .. " for " .. displayTarget .. "!</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Combat Style " .. properName .. " for " .. displayTarget .. "!</font>") end
 		else
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Fighting Style '" .. rawName .. "' does not exist.</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Style '" .. rawName .. "' does not exist.</font>") end
 		end
 
 	elseif cmd == "!settrait" then
@@ -282,12 +274,12 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 
 		if properName then
 			for _, target in ipairs(targets) do
-				target:SetAttribute("StandTrait", properName)
+				target:SetAttribute("TitanTrait", properName)
 				if isMassEvent and target ~= adminPlayer then
-					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Stand Trait was set to: " .. properName .. "!</font>")
+					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> Your Titan Trait was set to: " .. properName .. "!</font>")
 				end
 			end
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Stand Trait " .. properName .. " for " .. displayTarget .. "!</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Set Titan Trait " .. properName .. " for " .. displayTarget .. "!</font>") end
 		else
 			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Trait '" .. rawName .. "' does not exist.</font>") end
 		end
@@ -308,29 +300,25 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 					local current = target:GetAttribute(properStat) or 0
 					target:SetAttribute(properStat, current + amount)
 				end
-
-				if isMassEvent and target ~= adminPlayer then
-					SendAdminNotice(target, "<font color='#FFD700'><b>" .. eventTag .. ":</b> You received " .. amount .. " " .. properStat .. "!</font>")
-				end
 			end
 			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Added " .. amount .. " " .. properStat .. " to " .. displayTarget .. "!</font>") end
 		else
 			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Stat '" .. rawStat .. "' does not exist.</font>") end
 		end
 
-	elseif cmd == "!joingang" then
-		local rawGangName = table.concat(parts, " ", 3)
-		local gangKey = string.lower(rawGangName)
-		local success, gangData = pcall(function() return GangStore:GetAsync(gangKey) end)
+	elseif cmd == "!joinclan" then
+		local rawClanName = table.concat(parts, " ", 3)
+		local clanKey = string.lower(rawClanName)
+		local success, clanData = pcall(function() return ClanStore:GetAsync(clanKey) end)
 
-		if success and gangData then
+		if success and clanData then
 			for _, target in ipairs(targets) do
 				local uidStr = tostring(target.UserId)
 				local prestigeVal = target:WaitForChild("leaderstats") and target.leaderstats:WaitForChild("Prestige").Value or 0
 
-				local oldGangKey = target:GetAttribute("Gang")
-				if oldGangKey and oldGangKey ~= "None" then
-					GangStore:UpdateAsync(oldGangKey, function(oldData)
+				local oldClanKey = target:GetAttribute("Clan")
+				if oldClanKey and oldClanKey ~= "None" then
+					ClanStore:UpdateAsync(oldClanKey, function(oldData)
 						if oldData then
 							oldData.Members[uidStr] = nil
 							oldData.MemberCount = GetDictSize(oldData.Members)
@@ -339,7 +327,7 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 					end)
 				end
 
-				GangStore:UpdateAsync(gangKey, function(newData)
+				ClanStore:UpdateAsync(clanKey, function(newData)
 					if newData then
 						newData.Members[uidStr] = { Name = target.Name, Role = "Grunt", Prestige = prestigeVal, LastOnline = os.time() }
 						newData.MemberCount = GetDictSize(newData.Members)
@@ -347,36 +335,36 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 					return newData
 				end)
 
-				target:SetAttribute("Gang", gangKey)
-				target:SetAttribute("GangRole", "Grunt")
-				SendAdminNotice(target, "<font color='#FFD700'>Admin force-joined you to " .. gangData.Name .. "!</font>")
+				target:SetAttribute("Clan", clanKey)
+				target:SetAttribute("ClanRole", "Grunt")
+				SendAdminNotice(target, "<font color='#FFD700'>Admin force-joined you to " .. clanData.Name .. "!</font>")
 			end
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-joined " .. displayTarget .. " to " .. gangData.Name .. ".</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Force-joined " .. displayTarget .. " to " .. clanData.Name .. ".</font>") end
 		else
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Gang '" .. rawGangName .. "' not found in DataStore.</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Clan '" .. rawClanName .. "' not found in DataStore.</font>") end
 		end
 
 	elseif cmd == "!addrep" then
 		local amount = tonumber(parts[2])
-		local rawGangName = table.concat(parts, " ", 3)
-		local gangKey = string.lower(rawGangName)
+		local rawClanName = table.concat(parts, " ", 3)
+		local clanKey = string.lower(rawClanName)
 
-		if not amount or not gangKey then
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Usage: !addrep [Amount] [GangName]</font>") end
+		if not amount or not clanKey then
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Usage: !addrep [Amount] [ClanName]</font>") end
 			return
 		end
 
-		local s, d = pcall(function() return GangStore:GetAsync(gangKey) end)
+		local s, d = pcall(function() return ClanStore:GetAsync(clanKey) end)
 		if s and d then
 			pcall(function()
-				GangStore:UpdateAsync(gangKey, function(oldData)
+				ClanStore:UpdateAsync(clanKey, function(oldData)
 					if oldData then oldData.Rep = (oldData.Rep or 0) + amount end
 					return oldData
 				end)
 			end)
 			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Added " .. amount .. " Rep to " .. d.Name .. "!</font>") end
 		else
-			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Gang '" .. rawGangName .. "' not found.</font>") end
+			if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#FF5555'>Admin Error: Clan '" .. rawClanName .. "' not found.</font>") end
 		end
 
 	elseif cmd == "!promote" then
@@ -390,44 +378,30 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 		end
 
 		for _, target in ipairs(targets) do
-			local gangKey = target:GetAttribute("Gang")
-			if gangKey and gangKey ~= "None" then
-				local success, gangData = pcall(function() return GangStore:GetAsync(gangKey) end)
-				if success and gangData then
+			local clanKey = target:GetAttribute("Clan")
+			if clanKey and clanKey ~= "None" then
+				local success, clanData = pcall(function() return ClanStore:GetAsync(clanKey) end)
+				if success and clanData then
 					local uidStr = tostring(target.UserId)
-					if gangData.Members[uidStr] then
-						if newRole == "Boss" or newRole == "Consigliere" then
-							for u, m in pairs(gangData.Members) do
-								if m.Role == newRole and u ~= uidStr then
-									m.Role = "Grunt"
-									local oldMember = Players:GetPlayerByUserId(tonumber(u))
-									if oldMember then 
-										oldMember:SetAttribute("GangRole", "Grunt")
-										SendAdminNotice(oldMember, "<font color='#FF5555'>Admin demoted your Gang Rank.</font>")
-									end
-								end
-							end
-						end
-						gangData.Members[uidStr].Role = newRole
-						pcall(function() GangStore:UpdateAsync(gangKey, function(oldData) 
-								if oldData then oldData.Members = gangData.Members end
+					if clanData.Members[uidStr] then
+						clanData.Members[uidStr].Role = newRole
+						pcall(function() ClanStore:UpdateAsync(clanKey, function(oldData) 
+								if oldData then oldData.Members = clanData.Members end
 								return oldData 
 							end) end)
-
-						target:SetAttribute("GangRole", newRole)
-						SendAdminNotice(target, "<font color='#FFD700'>Admin set your Gang Rank to " .. newRole .. "!</font>")
+						target:SetAttribute("ClanRole", newRole)
 					end
 				end
 			end
 		end
 		if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Promoted " .. displayTarget .. " to " .. newRole .. ".</font>") end
 
-	elseif cmd == "!kickgang" then
+	elseif cmd == "!kickclan" then
 		for _, target in ipairs(targets) do
-			local gangKey = target:GetAttribute("Gang")
-			if gangKey and gangKey ~= "None" then
+			local clanKey = target:GetAttribute("Clan")
+			if clanKey and clanKey ~= "None" then
 				pcall(function() 
-					GangStore:UpdateAsync(gangKey, function(oldData)
+					ClanStore:UpdateAsync(clanKey, function(oldData)
 						if oldData and oldData.Members[tostring(target.UserId)] then
 							oldData.Members[tostring(target.UserId)] = nil
 							oldData.MemberCount = GetDictSize(oldData.Members)
@@ -435,23 +409,21 @@ local function ExecuteCommandLocally(cmd, parts, adminPlayer, isFromCrossServer,
 						return oldData
 					end) 
 				end)
-				target:SetAttribute("Gang", "None")
-				target:SetAttribute("GangRole", "None")
-				SendAdminNotice(target, "<font color='#FF5555'>Admin forcefully kicked you from your gang.</font>")
+				target:SetAttribute("Clan", "None")
+				target:SetAttribute("ClanRole", "None")
+				SendAdminNotice(target, "<font color='#FF5555'>Admin forcefully kicked you from your clan.</font>")
 			end
 		end
-		if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Kicked " .. displayTarget .. " from their gang.</font>") end
+		if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Kicked " .. displayTarget .. " from their clan.</font>") end
 
-	elseif cmd == "!deletegang" then
-		local rawGangName = table.concat(parts, " ", 2)
-		local gangKey = string.lower(rawGangName)
+	elseif cmd == "!deleteclan" then
+		local rawClanName = table.concat(parts, " ", 2)
+		local clanKey = string.lower(rawClanName)
 
-		local wipeEvent = ReplicatedStorage:FindFirstChild("AdminForceWipeGang")
-		if wipeEvent then
-			wipeEvent:Fire(gangKey)
-		end
+		local wipeEvent = ReplicatedStorage:FindFirstChild("AdminForceWipeClan")
+		if wipeEvent then wipeEvent:Fire(clanKey) end
 
-		if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Obliterated gang '" .. rawGangName .. "' from all servers and leaderboards.</font>") end
+		if adminPlayer then SendAdminNotice(adminPlayer, "<font color='#55FF55'>Admin: Obliterated clan '" .. rawClanName .. "' from all servers and leaderboards.</font>") end
 	end
 end
 
@@ -459,15 +431,14 @@ pcall(function()
 	MessagingService:SubscribeAsync(GLOBAL_TOPIC, function(message)
 		local data = message.Data
 		if data.ServerId == game.JobId then return end 
-
 		ExecuteCommandLocally(data.Cmd, data.Parts, nil, true, data.SenderName)
 	end)
 end)
 
 local validCmds = {
-	["!additem"] = true, ["!setstand"] = true, ["!setstyle"] = true, ["!addstat"] = true,
-	["!joingang"] = true, ["!promote"] = true, ["!deletegang"] = true, ["!spawnwb"] = true,
-	["!kickgang"] = true, ["!settrait"] = true, ["!announcement"] = true,
+	["!additem"] = true, ["!settitan"] = true, ["!setstyle"] = true, ["!addstat"] = true,
+	["!joinclan"] = true, ["!promote"] = true, ["!deleteclan"] = true, ["!spawnwb"] = true,
+	["!kickclan"] = true, ["!settrait"] = true, ["!announcement"] = true,
 	["!addpass"] = true, ["!addrep"] = true
 }
 
@@ -485,11 +456,10 @@ local function OnPlayerAdded(player)
 		if not validCmds[cmd] then return end
 
 		if isAnnouncer and not isFullAdmin and cmd ~= "!announcement" then return end
-
 		if #parts < 2 and cmd ~= "!spawnwb" then return end
 
 		local targetStr = parts[2] and string.lower(parts[2]) or ""
-		local isGlobal = (targetStr == "@all") or (cmd == "!announcement") or (cmd == "!spawnwb") or (cmd == "!deletegang")
+		local isGlobal = (targetStr == "@all") or (cmd == "!announcement") or (cmd == "!spawnwb") or (cmd == "!deleteclan")
 
 		if isGlobal then
 			pcall(function()
@@ -507,7 +477,4 @@ local function OnPlayerAdded(player)
 end
 
 Players.PlayerAdded:Connect(OnPlayerAdded)
-
-for _, player in ipairs(Players:GetPlayers()) do
-	OnPlayerAdded(player)
-end
+for _, player in ipairs(Players:GetPlayers()) do OnPlayerAdded(player) end
