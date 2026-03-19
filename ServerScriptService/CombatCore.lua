@@ -1,4 +1,14 @@
 -- @ScriptType: ModuleScript
+You are completely right, my apologies. I left the JoJo ultimate effects (`ReturnToZero`, `TimeErase`, `TimeStop`, `TimeRewind`, etc.) in the utility block of `ExecuteStrike`, as well as some JoJo-esque traits like "Overheaven" and "Requiem". 
+
+	Let's completely purge those. In Attack on Titan, there is no time-stopping or reality-rewriting. Combat is grounded, brutal, and physical. 
+
+Here is the **fully purged and AoT-purified `CombatCore.lua`**. I removed all the reality-bending effects and updated the random weapon/titan traits to sound grounded in the AoT universe (e.g., "Overheaven" is now "Awakened", "Vampiric" is "Bloodthirsty", "Electric" is "Concussive").
+
+	### Replace `ServerScriptService/CombatCore.lua`:
+
+	```lua
+-- @ScriptType: ModuleScript
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
@@ -22,35 +32,35 @@ function CombatCore.GetEquipBonus(player, statName)
 
 	if ItemData.Equipment[wpn] and ItemData.Equipment[wpn].Bonus[statName] then bonus += ItemData.Equipment[wpn].Bonus[statName] end
 	if ItemData.Equipment[acc] and ItemData.Equipment[acc].Bonus[statName] then bonus += ItemData.Equipment[acc].Bonus[statName] end
-	if GameData.StyleBonuses and GameData.StyleBonuses[style] and GameData.StyleBonuses[style][statName] then bonus += GameData.StyleBonuses[style][statName] end
+	if GameData.WeaponBonuses and GameData.WeaponBonuses[style] and GameData.WeaponBonuses[style][statName] then bonus += GameData.WeaponBonuses[style][statName] end
 
 	return bonus
 end
 
 function CombatCore.GetPlayerBoosts(player)
-	local boosts = { XP = 1.0, Yen = 1.0, Luck = 0, Damage = 1.0 }
+	local boosts = { XP = 1.0, Dews = 1.0, Luck = 0, Damage = 1.0 }
 	if not player then return boosts end
 
 	local friends = math.min(player:GetAttribute("ServerFriends") or 0, 4)
 	boosts.XP += (friends * 0.05)
-	boosts.Yen += (friends * 0.05)
+	boosts.Dews += (friends * 0.05)
 
 	if player.MembershipType == Enum.MembershipType.Premium then boosts.XP += 0.05 end
 	if player:GetAttribute("IsSupporter") then boosts.XP += 0.05; boosts.Luck += 1 end
 
 	local elo = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Elo") and player.leaderstats.Elo.Value or 1000
-	if elo >= 1500 then boosts.Yen += 0.05 end
+	if elo >= 1500 then boosts.Dews += 0.05 end
 	if elo >= 2000 then boosts.XP += 0.05 end
 	if elo >= 3000 then boosts.Luck += 1 end
 	if elo >= 5000 then boosts.Damage *= 1.05 end
 
-	boosts.Yen *= (player:GetAttribute("GangYenBoost") or 1.0)
-	boosts.XP *= (player:GetAttribute("GangXPBoost") or 1.0)
-	local gLuck = player:GetAttribute("GangLuckBoost") or 1.0
-	if gLuck > 1.0 then boosts.Luck += 1 end 
-	boosts.Damage *= (player:GetAttribute("GangDmgBoost") or 1.0)
+	boosts.Dews *= (player:GetAttribute("ClanDewsBoost") or 1.0)
+	boosts.XP *= (player:GetAttribute("ClanXPBoost") or 1.0)
+	local cLuck = player:GetAttribute("ClanLuckBoost") or 1.0
+	if cLuck > 1.0 then boosts.Luck += 1 end 
+	boosts.Damage *= (player:GetAttribute("ClanDmgBoost") or 1.0)
 
-	local uniModStr = player:GetAttribute("UniverseModifier") or "None"
+	local uniModStr = player:GetAttribute("BattleCondition") or "None"
 	if CombatCore.HasModifier(uniModStr, "Lucky Star") then boosts.Luck += 1 end
 	if CombatCore.HasModifier(uniModStr, "Unlucky Aura") then boosts.Luck -= 1 end
 
@@ -67,25 +77,40 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, isDefenderBlo
 	local baseDmg = (attacker.TotalStrength or 1) * atkBuff * atkDebuff * skillMult
 
 	if attacker.IsPlayer then
-		if CombatCore.HasModifier(uniModStr, "Heavy Gravity") then baseDmg *= 1.25 end
-		if CombatCore.HasModifier(uniModStr, "Glass Cannon") then baseDmg *= 1.50 end
-		if CombatCore.HasModifier(uniModStr, "Sharpened Weapons") then baseDmg *= 1.10 end
-		if CombatCore.HasModifier(uniModStr, "Dull Blades") then baseDmg *= 0.90 end
+		if attacker.Clan == "Ackerman" and (attacker.Style == "Ultrahard Steel Blades" or attacker.Style == "Thunder Spears") then
+			baseDmg *= 1.25
+		end
+		if attacker.Clan == "Yeager" and attacker.Titan == "Attack Titan" and attacker.IsTransformed then
+			local missingHP = 1 - (attacker.HP / attacker.MaxHP)
+			baseDmg *= (1 + (missingHP * 0.5))
+		end
+		if attacker.Clan == "Tybur" and attacker.Titan == "War Hammer Titan" then
+			baseDmg *= 1.15
+		end
+	end
+
+	if attacker.IsPlayer then
+		if CombatCore.HasModifier(uniModStr, "Forest of Giant Trees") then baseDmg *= 1.15 end
+		if CombatCore.HasModifier(uniModStr, "Flimsy Blades") then baseDmg *= 1.50 end
 		if CombatCore.HasModifier(uniModStr, "Desperate Struggle") and (attacker.HP / attacker.MaxHP) <= 0.3 then baseDmg *= 1.50 end
 	else
-		if CombatCore.HasModifier(uniModStr, "Experience Surge") then baseDmg *= 1.25 end
+		if CombatCore.HasModifier(uniModStr, "Veteran Experience") then baseDmg *= 1.25 end
 	end
 
 	local defBypass = attacker.Trait == "Overwhelming" and 0.30 or 0
 	local effectiveArmor = ((defender.TotalDefense or 0) * defBuff * defDebuff) * (1 - defBypass)
 
-	if defender.IsPlayer then
-		if CombatCore.HasModifier(uniModStr, "Glass Cannon") then effectiveArmor *= 0.75 end
-		if CombatCore.HasModifier(uniModStr, "Hardened Armor") then effectiveArmor *= 1.10 end
-		if CombatCore.HasModifier(uniModStr, "Brittle Armor") then effectiveArmor *= 0.90 end
+	if defender.IsPlayer and defender.Clan == "Braun" then
+		effectiveArmor *= 1.25 
 	end
 
-	local armorPen = (attacker.TotalRange or 0) * 0.5
+	if defender.IsPlayer then
+		if CombatCore.HasModifier(uniModStr, "Flimsy Blades") then effectiveArmor *= 0.75 end
+		if CombatCore.HasModifier(uniModStr, "Hardened Skin") then effectiveArmor *= 1.10 end
+		if CombatCore.HasModifier(uniModStr, "Open Plains") then effectiveArmor *= 0.90 end
+	end
+
+	local armorPen = (attacker.TotalPrecision or 0) * 0.5 
 	local effectiveDefense = math.max(0, effectiveArmor - armorPen)
 
 	local defenseMultiplier = 100 / (100 + effectiveDefense)
@@ -94,8 +119,7 @@ function CombatCore.CalculateDamage(attacker, defender, skillMult, isDefenderBlo
 	if defender.Trait == "Armored" then finalDmg *= 0.85 end
 	if defender.Trait == "Indomitable" and (defender.HP / defender.MaxHP) <= 0.3 then finalDmg *= 0.75 end
 
-	if CombatCore.HasModifier(uniModStr, "Fragile Mortality") then finalDmg *= 1.50 end
-	if CombatCore.HasModifier(uniModStr, "Iron Skin") then finalDmg *= 0.75 end
+	if CombatCore.HasModifier(uniModStr, "The Rumbling") then finalDmg *= 1.50 end
 
 	if isDefenderBlocking then finalDmg *= 0.5 end
 	if attacker.GlobalDmgBoost then finalDmg *= attacker.GlobalDmgBoost end
@@ -114,7 +138,7 @@ function CombatCore.ChooseAISkill(combatant)
 			table.insert(validSkills, sName)
 		end
 	end
-	if #validSkills > 0 then return validSkills[math.random(1, #validSkills)] else return "Basic Attack" end
+	if #validSkills > 0 then return validSkills[math.random(1, #validSkills)] else return "Basic Slash" end
 end
 
 function CombatCore.TakeDamageWithWillpower(combatant, damage)
@@ -123,9 +147,8 @@ function CombatCore.TakeDamageWithWillpower(combatant, damage)
 		local defWill = (combatant.TotalWillpower or 1) * defWillBuff
 
 		if combatant.IsPlayer then
-			local uniModStr = combatant.PlayerObj and combatant.PlayerObj:GetAttribute("UniverseModifier") or "None"
-			if CombatCore.HasModifier(uniModStr, "Determined") then defWill *= 1.1 end
-			if CombatCore.HasModifier(uniModStr, "Faltering") then defWill *= 0.9 end
+			local uniModStr = combatant.PlayerObj and combatant.PlayerObj:GetAttribute("BattleCondition") or "None"
+			if CombatCore.HasModifier(uniModStr, "Paths Connection") then defWill *= 1.2 end
 		end
 
 		local survivalChance = math.clamp(defWill * 0.7, 0, 45)
@@ -147,9 +170,7 @@ end
 function CombatCore.ApplyStatusDamage(combatant, uniModStr, CombatUpdate, player, battle, waitMultiplier)
 	local statusDmgMod = CombatCore.HasModifier(uniModStr, "Cursed Wounds") and 0.07 or 0.05 
 
-	if combatant.IsBoss then
-		statusDmgMod = statusDmgMod * 0.85
-	end
+	if combatant.IsBoss then statusDmgMod = statusDmgMod * 0.85 end
 
 	if combatant.Statuses.Bleed > 0 then
 		local dmg = math.max(1, combatant.MaxHP * statusDmgMod)
@@ -186,19 +207,20 @@ function CombatCore.ApplyStatusDamage(combatant, uniModStr, CombatUpdate, player
 		local survived = CombatCore.TakeDamageWithWillpower(combatant, dmg)
 		combatant.Statuses.Freeze -= 1
 		local svMsg = survived and (combatant.Trait == "Perseverance" and " <font color='#FF55FF'>...PERSEVERANCE ACTIVATED!</font>" or " <font color='#FF55FF'>...SURVIVED ON WILLPOWER!</font>") or ""
-		CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#00FFFF'>"..combatant.Name.." took "..math.floor(dmg).." Freeze damage and is frozen solid!"..svMsg.."</font>", DidHit = true, ShakeType = "Light"})
+		CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#00FFFF'>"..combatant.Name.." took "..math.floor(dmg).." damage and is crystallized!"..svMsg.."</font>", DidHit = true, ShakeType = "Light"})
 		task.wait(waitMultiplier)
 		if combatant.HP < 1 then return end
-		if combatant.IsPlayer and not CombatCore.HasModifier(uniModStr, "Endless Stamina") then
+
+		if combatant.IsPlayer and not CombatCore.HasModifier(uniModStr, "Paths Connection") then
 			combatant.Stamina = math.min(combatant.MaxStamina, combatant.Stamina + 5)
-			combatant.StandEnergy = math.min(combatant.MaxStandEnergy, combatant.StandEnergy + 5)
+			combatant.TitanEnergy = math.min(combatant.MaxTitanEnergy, (combatant.TitanEnergy or 0) + 5)
 		end
 		return "Frozen"
 	end
 end
 
 function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logName, defName, logColor, defColor)
-	local skill = SkillData.Skills[skillName] or SkillData.Skills["Basic Attack"]
+	local skill = SkillData.Skills[skillName] or SkillData.Skills["Basic Slash"]
 	uniModStr = uniModStr or "None"
 
 	local fLogName = "<font color='" .. (logColor or "#FFFFFF") .. "'>" .. logName .. "</font>"
@@ -218,15 +240,29 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		bName = fDefName
 	end
 
+	if skillName == "Titan Transformation" then
+		attacker.IsTransformed = true
+		attacker.TitanEnergy = 0
+		attacker.TitanHeat = 0
+		attacker.HP = math.min(attacker.MaxHP, attacker.HP + (attacker.MaxHP * 0.25))
+		return "", false, "Heavy" 
+	end
+
 	if skill.Effect ~= "Flee" then
-		local stamCost = skill.StaminaCost or 0
-		local nrgCost = skill.EnergyCost or 0
 		if attacker.IsPlayer then
-			if CombatCore.HasModifier(uniModStr, "Speed of Light") then stamCost *= 1.5; nrgCost *= 1.5 end
-			if CombatCore.HasModifier(uniModStr, "Endless Stamina") then stamCost *= 0.5; nrgCost *= 0.5 end
+			if attacker.IsTransformed then
+				local heatGen = skill.HeatCost or 20
+				if attacker.Clan == "Yeager" and attacker.Titan == "Attack Titan" then heatGen *= 0.7 end
+				attacker.TitanHeat = (attacker.TitanHeat or 0) + heatGen
+			else
+				local stamCost = skill.StaminaCost or 0
+				local nrgCost = skill.EnergyCost or 0
+				if CombatCore.HasModifier(uniModStr, "ODM Surge") then stamCost *= 1.5; nrgCost *= 1.5 end
+				if CombatCore.HasModifier(uniModStr, "Paths Connection") then stamCost *= 0.5; nrgCost *= 0.5 end
+				if attacker.Stamina then attacker.Stamina = math.max(0, attacker.Stamina - stamCost) end
+				if attacker.TitanEnergy then attacker.TitanEnergy = math.max(0, attacker.TitanEnergy - nrgCost) end
+			end
 		end
-		if attacker.Stamina then attacker.Stamina = math.max(0, attacker.Stamina - stamCost) end
-		if attacker.StandEnergy then attacker.StandEnergy = math.max(0, attacker.StandEnergy - nrgCost) end
 		if attacker.Cooldowns then attacker.Cooldowns[skillName] = skill.Cooldown or 0 end
 	end
 
@@ -253,49 +289,17 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		end
 	end
 
+	-- Utility & Healing Effects
 	if skill.Effect == "Block" then
-		b.BlockTurns = 2; return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! " .. bName .. " reduces incoming damage.", false, "None"
+		b.BlockTurns = 2; return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! " .. bName .. " braces for impact, reducing incoming damage.", false, "None"
 	elseif skill.Effect == "Rest" then
 		if b.MaxStamina then b.Stamina = math.min(b.MaxStamina, (b.Stamina or 0) + 20) end
-		if b.MaxStandEnergy then b.StandEnergy = math.min(b.MaxStandEnergy, (b.StandEnergy or 0) + 20) end
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. bName .. " rests, recovering Stamina and Energy.</font>", false, "None"
+		if b.MaxTitanEnergy and not b.IsTransformed then b.TitanEnergy = math.min(b.MaxTitanEnergy, (b.TitanEnergy or 0) + 20) end
+		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. bName .. " regroups, recovering Stamina and Energy.</font>", false, "None"
 	elseif skill.Effect == "Heal" then
 		local healAmount = (b.MaxHP or 100) * (skill.HealPercent or 0.25)
 		b.HP = math.min(b.MaxHP or b.HP, b.HP + healAmount)
 		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b> and recovered <font color='#55FF55'>" .. math.floor(healAmount) .. " HP</font> for " .. bName .. "!", false, "None"
-	elseif skill.Effect == "TimeRewind" then
-		local lostHP = (b.MaxHP or b.HP) - b.HP
-		local healAmount = lostHP * 0.5 
-		b.HP = math.min(b.MaxHP or b.HP, b.HP + healAmount)
-		if b.Statuses then
-			b.Statuses.Poison = 0; b.Statuses.Burn = 0; b.Statuses.Bleed = 0; b.Statuses.Freeze = 0; b.Statuses.Confusion = 0
-		end
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#FF55FF'>Bites the Dust activates! Rewinding time to restore " .. math.floor(healAmount) .. " HP and clear ailments for " .. bName .. "!</font>", false, "Heavy"
-	elseif skill.Effect == "TimeReset" then
-		local lostHP = (b.MaxHP or b.HP) - b.HP
-		local healAmount = lostHP * 0.25 
-		b.HP = math.min(b.MaxHP or b.HP, b.HP + healAmount)
-		if b.Statuses then
-			b.Statuses.Poison = 0; b.Statuses.Burn = 0; b.Statuses.Bleed = 0; b.Statuses.Freeze = 0; b.Statuses.Confusion = 0
-		end
-		local ccMsg = ""
-		if t and t.Statuses then
-			ccMsg = ApplyCC("Confusion", 2, t, "#FF55FF", "Confused")
-		end
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#FF55FF'>Made in Heaven activates! The universe begins to restart... restoring " .. math.floor(healAmount) .. " HP for " .. bName .. " and disorienting " .. tName .. "!</font>" .. ccMsg, false, "Heavy"
-	elseif skill.Effect == "ReturnToZero" then
-		b.HP = b.MaxHP or b.HP
-		if b.Statuses then
-			b.Statuses.Poison = 0; b.Statuses.Burn = 0; b.Statuses.Bleed = 0; b.Statuses.Freeze = 0; b.Statuses.Confusion = 0
-		end
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#FFD700'>Return to Zero! Reality is reset, fully restoring " .. bName .. " and nullifying all negative effects.</font>", false, "Heavy"
-	elseif skill.Effect == "TimeErase" then
-		b.Statuses.Buff_Speed = skill.Duration or 2
-		local ccMsg = ApplyCC("Stun", skill.Duration or 2, t, "#FF0000")
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#FF0000'>Time is erased, boosting Speed!</font>" .. ccMsg, false, "Light"
-	elseif skill.Effect == "TimeStop" then
-		local ccMsg = ApplyCC("Stun", skill.Duration or 2, t, "#FFFFFF", "Time Stopped")
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#AAAAAA'>Time comes to a halt...</font>" .. ccMsg, false, "Heavy"
 	elseif skill.Effect == "Buff_Random" then
 		local stats = {"Strength", "Defense", "Speed", "Willpower"}
 		local s = stats[math.random(1, 4)]
@@ -315,8 +319,15 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 	end
 
 	local hitsToDo = skill.Hits or 1
-	local isUnavoidable = (skillName == "Time Stop" or skillName == "ZA WARUDO!")
-	local msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>" .. (hitsToDo == 1 and "" or "!")
+	local isUnavoidable = (skillName == "Titan Roar" or skillName == "Coordinate Command")
+
+	local msg = ""
+	if skillName == "Titan Transformation" then
+		msg = "<b><font color='#FFD700'>" .. fLogName .. " triggered a lightning strike and ASCENDED into their Titan form!</font></b>"
+	else
+		msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>" .. (hitsToDo == 1 and "" or "!")
+	end
+
 	local hitLogs = {}
 	local didHitAtAll = false
 	local overallShake = "None"
@@ -324,6 +335,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 
 	for i = 1, hitsToDo do
 		if t.HP < 1 and i > 1 then break end 
+		if skillName == "Titan Transformation" then break end
 
 		local atkSpdBuff = (((attacker.Statuses and attacker.Statuses.Buff_Speed or 0) > 0) and 1.5 or 1.0) * (((attacker.Statuses and attacker.Statuses.Debuff_Speed or 0) > 0) and 0.5 or 1.0)
 		local defSpdBuff = (((t.Statuses and t.Statuses.Buff_Speed or 0) > 0) and 1.5 or 1.0) * (((t.Statuses and t.Statuses.Debuff_Speed or 0) > 0) and 0.5 or 1.0)
@@ -331,20 +343,18 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		local defSpd = (t.TotalSpeed or 1) * defSpdBuff
 
 		if attacker.IsPlayer then
-			if CombatCore.HasModifier(uniModStr, "Speed of Light") then atkSpd *= 1.5 end
-			if CombatCore.HasModifier(uniModStr, "Heavy Gravity") then atkSpd *= 0.75 end
-			if CombatCore.HasModifier(uniModStr, "Brisk Pace") then atkSpd *= 1.1 end
-			if CombatCore.HasModifier(uniModStr, "Sluggish") then atkSpd *= 0.9 end
+			if CombatCore.HasModifier(uniModStr, "ODM Surge") then atkSpd *= 1.5 end
+			if CombatCore.HasModifier(uniModStr, "Rainstorm") then atkSpd *= 0.85 end
+			if attacker.Clan == "Ackerman" and attacker.Style == "Ultrahard Steel Blades" then atkSpd *= 1.3 end
 		end
 		if t.IsPlayer then
-			if CombatCore.HasModifier(uniModStr, "Speed of Light") then defSpd *= 1.5 end
-			if CombatCore.HasModifier(uniModStr, "Heavy Gravity") then defSpd *= 0.75 end
-			if CombatCore.HasModifier(uniModStr, "Brisk Pace") then defSpd *= 1.1 end
-			if CombatCore.HasModifier(uniModStr, "Sluggish") then defSpd *= 0.9 end
+			if CombatCore.HasModifier(uniModStr, "ODM Surge") then defSpd *= 1.5 end
+			if CombatCore.HasModifier(uniModStr, "Rainstorm") then defSpd *= 0.85 end
+			if t.Clan == "Ackerman" and t.Style == "Ultrahard Steel Blades" then defSpd *= 1.3 end
 		end
 
 		local dodgeChance = math.clamp(5 + (defSpd - atkSpd) * 0.2, 5, 50)
-		dodgeChance = math.max(0, dodgeChance - ((attacker.TotalRange or 0) * 0.1))
+		dodgeChance = math.max(0, dodgeChance - ((attacker.TotalPrecision or 0) * 0.1))
 
 		if t.Trait == "Swift" then dodgeChance += 10 end
 		if t.Trait == "Evasive" then dodgeChance += 20 end
@@ -365,10 +375,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		didHitAtAll = true
 		local atkWillBuff = (((attacker.Statuses and attacker.Statuses.Buff_Willpower or 0) > 0) and 1.5 or 1.0) * (((attacker.Statuses and attacker.Statuses.Debuff_Willpower or 0) > 0) and 0.5 or 1.0)
 		local atkWill = (attacker.TotalWillpower or 1) * atkWillBuff
-		if attacker.IsPlayer then
-			if CombatCore.HasModifier(uniModStr, "Determined") then atkWill *= 1.1 end
-			if CombatCore.HasModifier(uniModStr, "Faltering") then atkWill *= 0.9 end
-		end
 
 		local critChance = math.clamp(5 + (atkWill * 0.5) + ((attacker.TotalPrecision or 0) * 0.2), 5, 75)
 		if attacker.Trait == "Brutal" then critChance += 15 end
@@ -378,16 +384,24 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		local isCrit = math.random(1, 100) <= critChance
 		local critMult = 1.5
 		if attacker.Trait == "Lethal" then critMult += 1.5 end 
-		if attacker.IsPlayer and CombatCore.HasModifier(uniModStr, "Lethal Precision") then critMult += 0.5 end
+		if attacker.IsPlayer and CombatCore.HasModifier(uniModStr, "Ackerman Awakening") then critMult += 0.5 end
 
 		local mult = skill.Mult * (isCrit and critMult or 1.0)
 		if attacker.Trait == "Relentless" then mult *= 1.15 end
-		if attacker.Trait == "Overheaven" then mult *= 1.30 end
-		if attacker.Trait == "Requiem" then mult *= 1.50 end
+
+		-- AoT Custom Traits (Replacing Overheaven/Requiem)
+		if attacker.Trait == "Awakened" then mult *= 1.30 end
+		if attacker.Trait == "Transcendent" then mult *= 1.50 end
 
 		local isBlocking = (t.BlockTurns or 0) > 0
 		local damage = CombatCore.CalculateDamage(attacker, t, mult, isBlocking, uniModStr)
 		local survivalTriggered = CombatCore.TakeDamageWithWillpower(t, damage)
+
+		if attacker.IsPlayer and not attacker.IsTransformed then
+			local energyGen = math.max(1, math.floor(damage * 0.05))
+			if attacker.Clan == "Arlert" then energyGen = math.floor(energyGen * 1.5) end
+			attacker.TitanEnergy = math.min(attacker.MaxTitanEnergy, (attacker.TitanEnergy or 0) + energyGen)
+		end
 
 		if isCrit or survivalTriggered then overallShake = "Heavy" elseif isBlocking and overallShake == "None" then overallShake = "Light" elseif overallShake == "None" then overallShake = "Normal" end
 
@@ -403,33 +417,24 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		end
 
 		local postMsg = ""
-		if attacker.Trait == "Vampiric" and damage > 0 then
+
+		-- Replaced Vampiric with Bloodthirsty
+		if attacker.Trait == "Bloodthirsty" and damage > 0 then
 			local vHeal = damage * 0.20; attacker.HP = math.min(attacker.MaxHP, attacker.HP + vHeal)
 			postMsg = postMsg .. " <font color='#AA00AA'>(Healed " .. math.floor(vHeal) .. ")</font>"
 		end
-		if CombatCore.HasModifier(uniModStr, "Vampiric Night") and not attacker.IsPlayer and not attacker.IsAlly and damage > 0 then
-			local nHeal = damage * 0.05; attacker.HP = math.min(attacker.MaxHP, attacker.HP + nHeal)
-			postMsg = postMsg .. " <font color='#AA00AA'>(Night Heal: " .. math.floor(nHeal) .. ")</font>"
-		end
 
 		if damage > 0 and not isBlocking then
-			if attacker.Trait == "Electric" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Stun", 1, t, "#FFFF55", "Shocked")
-			elseif attacker.Trait == "Frozen" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Freeze", 1, t, "#00FFFF", "Frozen")
-			elseif attacker.Trait == "Flaming" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Burn", 3, t, "#FF5500", "Ignited")
+			-- Replaced JoJo elemental traits with AoT grounded traits
+			if attacker.Trait == "Concussive" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Stun", 1, t, "#FFFF55", "Concussed")
+			elseif attacker.Trait == "Crystalline" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Freeze", 1, t, "#00FFFF", "Crystallized")
+			elseif attacker.Trait == "Incendiary" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Burn", 3, t, "#FF5500", "Scorched")
 			elseif attacker.Trait == "Toxic" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Poison", 3, t, "#AA00AA", "Infected")
 			elseif attacker.Trait == "Serrated" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Bleed", 3, t, "#FF0000", "Bled")
-			elseif attacker.Trait == "Disorienting" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Confusion", 1, t, "#FF55FF", "Confused")
-			elseif attacker.Trait == "Gambler" and math.random(1, 100) <= 10 then
+			elseif attacker.Trait == "Terrifying" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Confusion", 1, t, "#FF55FF", "Terrified")
+			elseif attacker.Trait == "Unpredictable" and math.random(1, 100) <= 10 then
 				local pick = ({{ "Bleed", "#FF0000" }, { "Poison", "#AA00AA" }, { "Burn", "#FF5500" }, { "Confusion", "#FF55FF" }, { "Stun", "#FFFF55" }, { "Freeze", "#00FFFF" }})[math.random(1, 6)]
-				postMsg = postMsg .. ApplyCC(pick[1], 2, t, pick[2], "Gambler: " .. pick[1])
-			elseif attacker.Trait == "Gloomy" and math.random(1, 100) <= 10 then
-				local s = {"Strength", "Defense", "Speed", "Willpower"}
-				t.Statuses["Debuff_"..s[math.random(1,4)]] = 3
-				postMsg = postMsg .. " <font color='#FF5555'>(Gloomy Debuff!)</font>"
-			elseif attacker.Trait == "Cheerful" and math.random(1, 100) <= 10 then
-				local s = {"Strength", "Defense", "Speed", "Willpower"}
-				b.Statuses["Buff_"..s[math.random(1,4)]] = 3
-				postMsg = postMsg .. " <font color='#55FF55'>(Cheerful Buff!)</font>"
+				postMsg = postMsg .. ApplyCC(pick[1], 2, t, pick[2], "Unpredictable: " .. pick[1])
 			end
 		end
 
@@ -456,9 +461,18 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		if hitsToDo == 1 then msg = hitMsg .. postMsg else table.insert(hitLogs, hitMsg .. postMsg) end
 	end
 
-	if hitsToDo > 1 then
+	if hitsToDo > 1 and skillName ~= "Titan Transformation" then
 		if not didHitAtAll then msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>, but " .. tName .. " dodged completely!"
 		else msg = msg .. "\n" .. table.concat(hitLogs, "\n") end
+	end
+
+	if attacker.IsPlayer and attacker.IsTransformed and (attacker.TitanHeat or 0) >= 100 then
+		attacker.IsTransformed = false
+		attacker.TitanEnergy = 0
+		attacker.TitanHeat = 0
+		attacker.Statuses.Debuff_Speed = 2
+		attacker.Statuses.Debuff_Defense = 2
+		msg = msg .. "\n<b><font color='#FF5555'>BURNOUT! " .. fLogName .. "'s Titan body evaporated! Speed and Defense crippled for 2 turns!</font></b>"
 	end
 
 	return msg, didHitAtAll, overallShake
