@@ -1,17 +1,18 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local RedeemCode = Network:WaitForChild("RedeemCode")
 
 local ActiveCodes = {
-	["BIZARRE"] = {Yen = 1000, XP = 2500, Items = {["Stand Arrow"] = 1}},
-	["250KVISITS"] = {Items = {["Stand Arrow"] = 250, ["Rokakaka"] = 250, ["Saint's Corpse Part"] = 100}},
-	["2KFAVS"] = {Items = {["Stand Arrow"] = 20, ["Rokakaka"] = 20, ["Saint's Corpse Part"] = 2}},
+	["SHIGANSHINA"] = {Dews = 1000, XP = 2500, Items = {["Standard Titan Serum"] = 1}},
+	["250KVISITS"] = {Items = {["Standard Titan Serum"] = 50, ["Founder's Memory Wipe"] = 50, ["Spinal Fluid Syringe"] = 10}},
+	["2KFAVS"] = {Items = {["Standard Titan Serum"] = 10, ["Founder's Memory Wipe"] = 10, ["Spinal Fluid Syringe"] = 2}},
 	["1KLIKES"] = {Items = {["Legendary Giftbox"] = 10, ["Mythical Giftbox"] = 1}},
 	["INVFIX"] = {Items = {["Legendary Giftbox"] = 10, ["Mythical Giftbox"] = 1}},
-	["GANGSUPD"] = {Items = {["Stand Arrow"] = 10, ["Rokakaka"] = 5, ["Saint's Corpse Part"] = 3}},
-	["STEEL PIPE"] = {Items = {["Steel Pipe (x400)"] = 1}}
+	["CLANSUPD"] = {Items = {["Standard Titan Serum"] = 10, ["Founder's Memory Wipe"] = 5, ["Ymir's Clay Fragment"] = 1}},
+	["THUNDERSPEAR"] = {Items = {["Thunder Spear"] = 1}}
 }
 
 RedeemCode.OnServerEvent:Connect(function(player, codeStr)
@@ -30,10 +31,10 @@ RedeemCode.OnServerEvent:Connect(function(player, codeStr)
 	local reward = ActiveCodes[codeStr]
 	if reward then
 		local xpReward = reward.XP or 0
-		local yenReward = reward.Yen or 0
+		local dewsReward = reward.Dews or 0
 
-		if yenReward > 0 then
-			player.leaderstats.Yen.Value += yenReward
+		if dewsReward > 0 then
+			player.leaderstats.Yen.Value += dewsReward -- Still uses Yen internally for backward compat, displays as Dews
 		end
 		if xpReward > 0 then
 			player:SetAttribute("XP", (player:GetAttribute("XP") or 0) + xpReward)
@@ -41,7 +42,7 @@ RedeemCode.OnServerEvent:Connect(function(player, codeStr)
 
 		local rewardStrings = {}
 		if xpReward > 0 then table.insert(rewardStrings, "+" .. xpReward .. " XP") end
-		if yenReward > 0 then table.insert(rewardStrings, "+" .. yenReward .. " Yen") end
+		if dewsReward > 0 then table.insert(rewardStrings, "+" .. dewsReward .. " Dews") end
 
 		if reward.Items then
 			for itemName, amount in pairs(reward.Items) do
