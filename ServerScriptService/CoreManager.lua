@@ -7,7 +7,8 @@ local MarketplaceService = game:GetService("MarketplaceService")
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 
-local GameDataStore = DataStoreService:GetDataStore("JojoRPG_Alpha_V8")
+-- NEW DATASTORE FOR THE AOT REWORK
+local GameDataStore = DataStoreService:GetDataStore("AoT_Incremental_V1")
 
 -- Prevent UI Infinite Yields from missing folders
 local UITemplates = ReplicatedStorage:FindFirstChild("UITemplates")
@@ -24,22 +25,21 @@ if not RemotesFolder then
 	RemotesFolder.Parent = ReplicatedStorage
 end
 
+-- Updated Remote Events (Swapped Gang for Clan, Removed Trade if unneeded, etc.)
 local requiredRemotes = {
 	"ToggleMute",
 	"TutorialAction",
 	"CombatAction",
 	"CombatUpdate",
-	"DungeonAction",
+	"DungeonAction", -- (Expeditions)
 	"DungeonUpdate",
 	"ArenaAction",
 	"ArenaUpdate",
-	"TradeAction",
-	"TradeUpdate",
 	"ShopAction",
 	"ShopUpdate",
 	"BoostAction",
-	"GangAction",
-	"GangUpdate",
+	"ClanAction", -- Formerly Gang
+	"ClanUpdate",
 	"InventoryAction",
 	"TrainingAction",
 	"MultiplayerAction",
@@ -70,46 +70,46 @@ ToggleMuteRemote.OnServerEvent:Connect(function(player, state)
 	end
 end)
 
+-- FULLY OVERHAULED DEFAULT DATA
 local DefaultData = {
 	Prestige = 0, CurrentPart = 1, CurrentMission = 1, XP = 0, Yen = 0, Elo = 1000, TutorialStep = 0, PlayTime = 0,
 	EndlessHighScore = 0, EndlessMaxMilestone = 0, RaidWins = 0, 
-	DungeonClear_Part1 = false, DungeonClear_Part2 = false, DungeonClear_Part3 = false,
-	DungeonClear_Part4 = false, DungeonClear_Part5 = false, DungeonClear_Part6 = false,
+	CampaignClear_Part1 = false, CampaignClear_Part2 = false, CampaignClear_Part3 = false,
+	CampaignClear_Part4 = false, CampaignClear_Part5 = false, CampaignClear_Part6 = false, CampaignClear_Part7 = false,
 
 	AutoSell_Common = false, AutoSell_Uncommon = false, AutoSell_Rare = false, AutoSell_Legendary = false, AutoSell_Mythical = false,
 
-	UniverseModifier = "None", StandPity = 0, TraitPity = 0, ShopPity = 0, ClaimedSupporterReward = false,
+	BattleCondition = "Clear Weather", TitanPity = 0, TraitPity = 0, ShopPity = 0, ClaimedSupporterReward = false,
 
-	Gang = "None", GangRole = "None", LastOnline = os.time(),
+	Clan = "None", ClanRole = "None", LastOnline = os.time(),
 
 	LastWorldBossHour = -1,
 
-	StandLocked = false, StyleLocked = false, IsMuted = false, LockedItems = "",
+	TitanLocked = false, StyleLocked = false, IsMuted = false, LockedItems = "",
 
 	Has2xBattleSpeed = false, HasAutoTraining = false, Has2xInventory = false,
-	Has2xDropChance = false, HasStandSlot2 = false, HasStandSlot3 = false,
-	HasAutoRoll = false, HasHorseNamePass = false,
+	Has2xDropChance = false, HasTitanSlot2 = false, HasTitanSlot3 = false,
+	HasAutoRoll = false,
 
 	HasStyleSlot2 = false, HasStyleSlot3 = false,
 
 	Stats = { Health = 1, Strength = 1, Defense = 1, Speed = 1, Stamina = 1, Willpower = 1 },
 	EquippedWeapon = "None", EquippedAccessory = "None",
-	StandStats = {Power="None", Speed="None", Range="None", Durability="None", Precision="None", Potential="None"},
-	StandStatsVal = {Power=0, Speed=0, Range=0, Durability=0, Precision=0, Potential=0},
+
+	TitanStats = {Power="None", Speed="None", Hardening="None", Endurance="None", Precision="None", Potential="None"},
+	TitanStatsVal = {Power=0, Speed=0, Hardening=0, Endurance=0, Precision=0, Potential=0},
+
 	ShopStock = "", ShopRefreshTime = 0, RedeemedCodes = "",
 
-	StoredStand1 = "None", StoredStand1_Trait = "None",
-	StoredStand2 = "None", StoredStand2_Trait = "None",
-	StoredStand3 = "None", StoredStand3_Trait = "None",
-	StoredStand4 = "None", StoredStand4_Trait = "None",
-	StoredStand5 = "None", StoredStand5_Trait = "None",
+	StoredTitan1 = "None", StoredTitan1_Trait = "None",
+	StoredTitan2 = "None", StoredTitan2_Trait = "None",
+	StoredTitan3 = "None", StoredTitan3_Trait = "None",
+	StoredTitan4 = "None", StoredTitan4_Trait = "None",
+	StoredTitan5 = "None", StoredTitan5_Trait = "None",
 
 	StoredStyle1 = "None",
 	StoredStyle2 = "None",
 	StoredStyle3 = "None",
-
-	HorseName = "", HorseSpeed = 1, HorseEndurance = 1, HorseTrait = "None",
-	HorseUpgradeEnd = 0, HorseUpgradeStat = "None"
 }
 
 local function SetupLeaderstats(player, savedData)
@@ -144,8 +144,8 @@ local function SetupLeaderstats(player, savedData)
 	end
 
 	for statName, statVal in pairs(savedData.Stats) do player:SetAttribute(statName, statVal) end
-	for standStat, rank in pairs(savedData.StandStats) do player:SetAttribute("Stand_"..standStat, rank) end
-	for standStatVal, val in pairs(savedData.StandStatsVal) do player:SetAttribute("Stand_"..standStatVal.."_Val", val) end
+	for titanStat, rank in pairs(savedData.TitanStats) do player:SetAttribute("Titan_"..titanStat, rank) end
+	for titanStatVal, val in pairs(savedData.TitanStatsVal) do player:SetAttribute("Titan_"..titanStatVal.."_Val", val) end
 
 	local function LoadItems(itemTable)
 		for itemName, _ in pairs(itemTable) do
@@ -169,12 +169,14 @@ local function SavePlayerData(player)
 		EndlessHighScore = player:GetAttribute("EndlessHighScore") or 0,
 		EndlessMaxMilestone = player:GetAttribute("EndlessMaxMilestone") or 0,
 		RaidWins = player:GetAttribute("RaidWins") or 0, 
-		DungeonClear_Part1 = player:GetAttribute("DungeonClear_Part1") or false,
-		DungeonClear_Part2 = player:GetAttribute("DungeonClear_Part2") or false,
-		DungeonClear_Part3 = player:GetAttribute("DungeonClear_Part3") or false,
-		DungeonClear_Part4 = player:GetAttribute("DungeonClear_Part4") or false,
-		DungeonClear_Part5 = player:GetAttribute("DungeonClear_Part5") or false,
-		DungeonClear_Part6 = player:GetAttribute("DungeonClear_Part6") or false,
+
+		CampaignClear_Part1 = player:GetAttribute("CampaignClear_Part1") or false,
+		CampaignClear_Part2 = player:GetAttribute("CampaignClear_Part2") or false,
+		CampaignClear_Part3 = player:GetAttribute("CampaignClear_Part3") or false,
+		CampaignClear_Part4 = player:GetAttribute("CampaignClear_Part4") or false,
+		CampaignClear_Part5 = player:GetAttribute("CampaignClear_Part5") or false,
+		CampaignClear_Part6 = player:GetAttribute("CampaignClear_Part6") or false,
+		CampaignClear_Part7 = player:GetAttribute("CampaignClear_Part7") or false,
 
 		AutoSell_Common = player:GetAttribute("AutoSell_Common") or false,
 		AutoSell_Uncommon = player:GetAttribute("AutoSell_Uncommon") or false,
@@ -182,19 +184,19 @@ local function SavePlayerData(player)
 		AutoSell_Legendary = player:GetAttribute("AutoSell_Legendary") or false,
 		AutoSell_Mythical = player:GetAttribute("AutoSell_Mythical") or false,
 
-		UniverseModifier = player:GetAttribute("UniverseModifier") or "None",
-		StandPity = player:GetAttribute("StandPity") or 0,
+		BattleCondition = player:GetAttribute("BattleCondition") or "Clear Weather",
+		TitanPity = player:GetAttribute("TitanPity") or 0,
 		TraitPity = player:GetAttribute("TraitPity") or 0,
 		ShopPity = player:GetAttribute("ShopPity") or 0,
 		ClaimedSupporterReward = player:GetAttribute("ClaimedSupporterReward") or false,
 
-		Gang = player:GetAttribute("Gang") or "None",
-		GangRole = player:GetAttribute("GangRole") or "None",
+		Clan = player:GetAttribute("Clan") or "None",
+		ClanRole = player:GetAttribute("ClanRole") or "None",
 		LastOnline = player:GetAttribute("LastOnline"), 
 
 		LastWorldBossHour = player:GetAttribute("LastWorldBossHour") or -1,
 
-		StandLocked = player:GetAttribute("StandLocked") or false,
+		TitanLocked = player:GetAttribute("TitanLocked") or false,
 		StyleLocked = player:GetAttribute("StyleLocked") or false,
 		IsMuted = player:GetAttribute("IsMuted") or false,
 		LockedItems = player:GetAttribute("LockedItems") or "",
@@ -203,45 +205,37 @@ local function SavePlayerData(player)
 		HasAutoTraining = player:GetAttribute("HasAutoTraining") or false,
 		Has2xInventory = player:GetAttribute("Has2xInventory") or false,
 		Has2xDropChance = player:GetAttribute("Has2xDropChance") or false,
-		HasStandSlot2 = player:GetAttribute("HasStandSlot2") or false,
-		HasStandSlot3 = player:GetAttribute("HasStandSlot3") or false,
+		HasTitanSlot2 = player:GetAttribute("HasTitanSlot2") or false,
+		HasTitanSlot3 = player:GetAttribute("HasTitanSlot3") or false,
 		HasAutoRoll = player:GetAttribute("HasAutoRoll") or false,
-		HasHorseNamePass = player:GetAttribute("HasHorseNamePass") or false,
 
 		HasStyleSlot2 = player:GetAttribute("HasStyleSlot2") or false,
 		HasStyleSlot3 = player:GetAttribute("HasStyleSlot3") or false,
 
-		Stand = player:GetAttribute("Stand"), StandTrait = player:GetAttribute("StandTrait") or "None",
+		Titan = player:GetAttribute("Titan"), TitanTrait = player:GetAttribute("TitanTrait") or "None",
 		FightingStyle = player:GetAttribute("FightingStyle"),
 		EquippedWeapon = player:GetAttribute("EquippedWeapon"), EquippedAccessory = player:GetAttribute("EquippedAccessory"),
 		ShopStock = player:GetAttribute("ShopStock"), ShopRefreshTime = player:GetAttribute("ShopRefreshTime"),
 		RedeemedCodes = player:GetAttribute("RedeemedCodes") or "",
 
-		StoredStand1 = player:GetAttribute("StoredStand1") or "None",
-		StoredStand1_Trait = player:GetAttribute("StoredStand1_Trait") or "None",
-		StoredStand2 = player:GetAttribute("StoredStand2") or "None",
-		StoredStand2_Trait = player:GetAttribute("StoredStand2_Trait") or "None",
-		StoredStand3 = player:GetAttribute("StoredStand3") or "None",
-		StoredStand3_Trait = player:GetAttribute("StoredStand3_Trait") or "None",
-		StoredStand4 = player:GetAttribute("StoredStand4") or "None",
-		StoredStand4_Trait = player:GetAttribute("StoredStand4_Trait") or "None",
-		StoredStand5 = player:GetAttribute("StoredStand5") or "None",
-		StoredStand5_Trait = player:GetAttribute("StoredStand5_Trait") or "None",
+		StoredTitan1 = player:GetAttribute("StoredTitan1") or "None",
+		StoredTitan1_Trait = player:GetAttribute("StoredTitan1_Trait") or "None",
+		StoredTitan2 = player:GetAttribute("StoredTitan2") or "None",
+		StoredTitan2_Trait = player:GetAttribute("StoredTitan2_Trait") or "None",
+		StoredTitan3 = player:GetAttribute("StoredTitan3") or "None",
+		StoredTitan3_Trait = player:GetAttribute("StoredTitan3_Trait") or "None",
+		StoredTitan4 = player:GetAttribute("StoredTitan4") or "None",
+		StoredTitan4_Trait = player:GetAttribute("StoredTitan4_Trait") or "None",
+		StoredTitan5 = player:GetAttribute("StoredTitan5") or "None",
+		StoredTitan5_Trait = player:GetAttribute("StoredTitan5_Trait") or "None",
 
 		StoredStyle1 = player:GetAttribute("StoredStyle1") or "None",
 		StoredStyle2 = player:GetAttribute("StoredStyle2") or "None",
 		StoredStyle3 = player:GetAttribute("StoredStyle3") or "None",
 
-		HorseName = player:GetAttribute("HorseName") or "",
-		HorseSpeed = player:GetAttribute("HorseSpeed") or 1,
-		HorseEndurance = player:GetAttribute("HorseEndurance") or 1,
-		HorseTrait = player:GetAttribute("HorseTrait") or "None",
-		HorseUpgradeEnd = player:GetAttribute("HorseUpgradeEnd") or 0,
-		HorseUpgradeStat = player:GetAttribute("HorseUpgradeStat") or "None",
-
 		Stats = { Health=player:GetAttribute("Health"), Strength=player:GetAttribute("Strength"), Defense=player:GetAttribute("Defense"), Speed=player:GetAttribute("Speed"), Stamina=player:GetAttribute("Stamina"), Willpower=player:GetAttribute("Willpower") },
-		StandStats = { Power=player:GetAttribute("Stand_Power"), Speed=player:GetAttribute("Stand_Speed"), Range=player:GetAttribute("Stand_Range"), Durability=player:GetAttribute("Stand_Durability"), Precision=player:GetAttribute("Stand_Precision"), Potential=player:GetAttribute("Stand_Potential") },
-		StandStatsVal = { Power=player:GetAttribute("Stand_Power_Val"), Speed=player:GetAttribute("Stand_Speed_Val"), Range=player:GetAttribute("Stand_Range_Val"), Durability=player:GetAttribute("Stand_Durability_Val"), Precision=player:GetAttribute("Stand_Precision_Val"), Potential=player:GetAttribute("Stand_Potential_Val") }
+		TitanStats = { Power=player:GetAttribute("Titan_Power"), Speed=player:GetAttribute("Titan_Speed"), Hardening=player:GetAttribute("Titan_Hardening"), Endurance=player:GetAttribute("Titan_Endurance"), Precision=player:GetAttribute("Titan_Precision"), Potential=player:GetAttribute("Titan_Potential") },
+		TitanStatsVal = { Power=player:GetAttribute("Titan_Power_Val"), Speed=player:GetAttribute("Titan_Speed_Val"), Hardening=player:GetAttribute("Titan_Hardening_Val"), Endurance=player:GetAttribute("Titan_Endurance_Val"), Precision=player:GetAttribute("Titan_Precision_Val"), Potential=player:GetAttribute("Titan_Potential_Val") }
 	}
 
 	local function SaveItems(itemTable, saveTarget)
@@ -269,7 +263,7 @@ Players.PlayerAdded:Connect(function(player)
 
 	local currentPrestige = player.leaderstats.Prestige.Value
 	local statCap = GameData.GetStatCap(currentPrestige)
-	local clampStats = {"Health", "Strength", "Defense", "Speed", "Stamina", "Willpower", "Stand_Power_Val", "Stand_Speed_Val", "Stand_Range_Val", "Stand_Durability_Val", "Stand_Precision_Val", "Stand_Potential_Val"}
+	local clampStats = {"Health", "Strength", "Defense", "Speed", "Stamina", "Willpower", "Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 
 	for _, statName in ipairs(clampStats) do
 		local val = player:GetAttribute(statName)
@@ -294,12 +288,12 @@ Players.PlayerAdded:Connect(function(player)
 	VerifyPass(1732129582, "HasAutoTraining")
 	VerifyPass(1732900742, "Has2xInventory")
 	VerifyPass(1732842877, "Has2xDropChance")
-	VerifyPass(1733160695, "HasStandSlot2")
-	VerifyPass(1732844091, "HasStandSlot3")
+	VerifyPass(1733160695, "HasTitanSlot2")
+	VerifyPass(1732844091, "HasTitanSlot3")
 	VerifyPass(1746853452, "HasStyleSlot2") 
 	VerifyPass(1745969849, "HasStyleSlot3")
 	VerifyPass(1749484465, "HasAutoRoll")
-	VerifyPass(1749586333, "HasHorseNamePass")
+	-- Horse Name pass removed entirely.
 
 	task.spawn(function()
 		while player and player.Parent do
