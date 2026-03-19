@@ -1,6 +1,7 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local StandData = require(ReplicatedStorage:WaitForChild("StandData"))
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
@@ -29,8 +30,8 @@ UnequipItemRemote.OnServerEvent:Connect(function(player, slot)
 end)
 
 ToggleLockRemote.OnServerEvent:Connect(function(player, lockType, extraData)
-	if lockType == "Stand" then
-		player:SetAttribute("StandLocked", not player:GetAttribute("StandLocked"))
+	if lockType == "Titan" then
+		player:SetAttribute("TitanLocked", not player:GetAttribute("TitanLocked"))
 	elseif lockType == "Style" then
 		player:SetAttribute("StyleLocked", not player:GetAttribute("StyleLocked"))
 	elseif lockType == "Item" and extraData then
@@ -56,27 +57,25 @@ local function GetPlayerBoosts(player)
 	if player:GetAttribute("IsSupporter") then boosts.Luck += 1 end
 	local elo = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Elo") and player.leaderstats.Elo.Value or 1000
 	if elo >= 3000 then boosts.Luck += 1 end
-	local gLuck = player:GetAttribute("GangLuckBoost") or 1.0
-	if gLuck > 1.0 then boosts.Luck += 1 end 
+	local cLuck = player:GetAttribute("ClanLuckBoost") or 1.0
+	if cLuck > 1.0 then boosts.Luck += 1 end 
 	return boosts
 end
 
 local AutoRollRemote = Network:FindFirstChild("AutoRoll") or Instance.new("RemoteEvent", Network)
 AutoRollRemote.Name = "AutoRoll"
 
-AutoRollRemote.OnServerEvent:Connect(function(player, rollType, targetStand, targetTrait)
+AutoRollRemote.OnServerEvent:Connect(function(player, rollType, targetTitan, targetTrait)
 	if player:GetAttribute("IsAutoRolling") then return end
 	player:SetAttribute("IsAutoRolling", true)
 
 	local itemReq = ""
-	local expectedPool = "Arrow"
+	local expectedPool = "Serum"
 
-	if rollType == "Arrow" then 
-		itemReq = "Stand Arrow"; expectedPool = "Arrow"
-	elseif rollType == "Corpse" then 
-		itemReq = "Saint's Corpse Part"; expectedPool = "Corpse"
-	elseif rollType == "Roka" then 
-		itemReq = "Rokakaka" 
+	if rollType == "Serum" then 
+		itemReq = "Standard Titan Serum"; expectedPool = "Serum"
+	elseif rollType == "Syringe" then 
+		itemReq = "Spinal Fluid Syringe" 
 	end
 
 	local attr = itemReq:gsub("[^%w]", "") .. "Count"
@@ -88,41 +87,35 @@ AutoRollRemote.OnServerEvent:Connect(function(player, rollType, targetStand, tar
 		return 
 	end
 
-	if targetStand ~= "Any" and (rollType == "Arrow" or rollType == "Corpse") then
-		local sData = StandData.Stands[targetStand]
-		if sData then
-			if sData.Rarity == "Evolution" or sData.Rarity == "Unique" or sData.Rarity == "Mythical" then
-				NotificationEvent:FireClient(player, "<font color='#FF5555'>" .. targetStand .. " cannot be rolled from items!</font>")
-				player:SetAttribute("IsAutoRolling", false)
-				return
-			end
-			local reqPool = sData.Pool or "Arrow"
-			if reqPool ~= expectedPool then
-				NotificationEvent:FireClient(player, "<font color='#FF5555'>You cannot get " .. targetStand .. " from a " .. itemReq .. "!</font>")
+	if targetTitan ~= "Any" and rollType == "Serum" then
+		local tData = TitanData.Titans[targetTitan]
+		if tData then
+			if tData.Rarity == "Evolution" or tData.Rarity == "Unique" or tData.Rarity == "Mythical" then
+				NotificationEvent:FireClient(player, "<font color='#FF5555'>" .. targetTitan .. " cannot be rolled from items!</font>")
 				player:SetAttribute("IsAutoRolling", false)
 				return
 			end
 		end
 	end
 
-	local newStand = player:GetAttribute("Stand") or "None"
-	local newTrait = player:GetAttribute("StandTrait") or "None"
+	local newTitan = player:GetAttribute("Titan") or "None"
+	local newTrait = player:GetAttribute("TitanTrait") or "None"
 
-	if player:GetAttribute("StandLocked") then
-		NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Stand is locked! Unlock it before Auto-Rolling.</font>")
+	if player:GetAttribute("TitanLocked") then
+		NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Titan is locked! Unlock it before Auto-Rolling.</font>")
 		player:SetAttribute("IsAutoRolling", false)
 		return
 	end
 
-	if rollType == "Roka" and newStand == "None" then
-		NotificationEvent:FireClient(player, "<font color='#FF5555'>You don't have a Stand to reroll!</font>")
+	if rollType == "Syringe" and newTitan == "None" then
+		NotificationEvent:FireClient(player, "<font color='#FF5555'>You don't have a Titan to inject fluid into!</font>")
 		player:SetAttribute("IsAutoRolling", false)
 		return
 	end
 
 	local pBoosts = GetPlayerBoosts(player)
-	local sPity = player:GetAttribute("StandPity") or 0
-	local tPity = player:GetAttribute("TraitPity") or 0
+	local tPity = player:GetAttribute("TitanPity") or 0
+	local trPity = player:GetAttribute("TraitPity") or 0
 	local rollsDone = 0
 	local hit = false
 
@@ -130,26 +123,26 @@ AutoRollRemote.OnServerEvent:Connect(function(player, rollType, targetStand, tar
 		count -= 1
 		rollsDone += 1
 
-		if rollType == "Arrow" or rollType == "Corpse" then
-			local isCorpse = (rollType == "Corpse")
-			newStand = StandData.RollStand(pBoosts.Luck, sPity, isCorpse and "Corpse" or "Arrow")
-			newTrait = StandData.RollTrait(pBoosts.Luck, tPity)
-		elseif rollType == "Roka" then
-			newTrait = StandData.RollTrait(pBoosts.Luck, tPity)
+		if rollType == "Serum" then
+			newTitan = TitanData.RollTitan(tPity)
+			newTrait = TitanData.RollTrait()
+		elseif rollType == "Syringe" then
+			newTrait = TitanData.RollTrait()
 		end
 
-		if StandData.Stands[newStand] and StandData.Stands[newStand].Rarity == "Legendary" then sPity = 0 else sPity += 1 end
-		if StandData.Traits[newTrait] and (StandData.Traits[newTrait].Rarity == "Mythical" or StandData.Traits[newTrait].Rarity == "Legendary") then tPity = 0 else tPity += 1 end
+		if TitanData.Titans[newTitan] and TitanData.Titans[newTitan].Rarity == "Legendary" then tPity = 0 else tPity += 1 end
+		-- Simulated trait rarity checks (Assuming Transcendent/Awakened are Mythical/Legendary equivalents)
+		if newTrait == "Transcendent" or newTrait == "Awakened" then trPity = 0 else trPity += 1 end
 
-		local wantStand = targetStand ~= "Any"
+		local wantTitan = targetTitan ~= "Any"
 		local wantTrait = targetTrait ~= "Any"
-		local standMatch = (wantStand and newStand == targetStand)
+		local titanMatch = (wantTitan and newTitan == targetTitan)
 		local traitMatch = (wantTrait and newTrait == targetTrait)
 
-		if wantStand and wantTrait then
-			if standMatch and traitMatch then hit = true; break end
-		elseif wantStand then
-			if standMatch then hit = true; break end
+		if wantTitan and wantTrait then
+			if titanMatch and traitMatch then hit = true; break end
+		elseif wantTitan then
+			if titanMatch then hit = true; break end
 		elseif wantTrait then
 			if traitMatch then hit = true; break end
 		else
@@ -160,56 +153,32 @@ AutoRollRemote.OnServerEvent:Connect(function(player, rollType, targetStand, tar
 	end
 
 	player:SetAttribute(attr, count)
-	player:SetAttribute("Stand", newStand)
-	player:SetAttribute("StandTrait", newTrait)
-	player:SetAttribute("StandPity", sPity)
-	player:SetAttribute("TraitPity", tPity)
+	player:SetAttribute("Titan", newTitan)
+	player:SetAttribute("TitanTrait", newTrait)
+	player:SetAttribute("TitanPity", tPity)
+	player:SetAttribute("TraitPity", trPity)
 
-	if newStand ~= "None" and StandData.Stands[newStand] then
-		for statName, rank in pairs(StandData.Stands[newStand].Stats) do player:SetAttribute("Stand_"..statName, rank) end
+	if newTitan ~= "None" and TitanData.Titans[newTitan] then
+		for statName, rank in pairs(TitanData.Titans[newTitan].Stats) do player:SetAttribute("Titan_"..statName, rank) end
 	end
 
 	local traitTag = newTrait ~= "None" and " ("..newTrait..")" or ""
 	if hit then
-		NotificationEvent:FireClient(player, "<font color='#55FF55'>Auto-Roll successful! Used " .. rollsDone .. "x " .. itemReq .. ".\nGot: " .. newStand .. traitTag .. "</font>")
+		NotificationEvent:FireClient(player, "<font color='#55FF55'>Auto-Roll successful! Used " .. rollsDone .. "x " .. itemReq .. ".\nGot: " .. newTitan .. traitTag .. "</font>")
 	else
-		NotificationEvent:FireClient(player, "<font color='#FF5555'>Ran out of " .. itemReq .. "s! Used " .. rollsDone .. ".\nEnded with: " .. newStand .. traitTag .. "</font>")
+		NotificationEvent:FireClient(player, "<font color='#FF5555'>Ran out of " .. itemReq .. "s! Used " .. rollsDone .. ".\nEnded with: " .. newTitan .. traitTag .. "</font>")
 	end
 
 	player:SetAttribute("IsAutoRolling", false)
 end)
 
-local function RollModifiers(count)
-	if count <= 0 then return "None" end
-	local available = {}
-	for modName, _ in pairs(GameData.UniverseModifiers) do
-		if modName ~= "None" then table.insert(available, modName) end
-	end
-	local rolled = {}
-	for i = 1, count do
-		if #available == 0 then break end
-		local idx = math.random(1, #available)
-		table.insert(rolled, available[idx])
-		table.remove(available, idx)
-	end
-	return table.concat(rolled, ",")
-end
-
 local function HandleGiftboxDrop(player, targetRarity)
 	local pool = {}
 	for name, data in pairs(ItemData.Equipment) do 
-		if data.Rarity == targetRarity then 
-			if not string.find(string.lower(name), "disc") then
-				table.insert(pool, name) 
-			end
-		end 
+		if data.Rarity == targetRarity then table.insert(pool, name) end 
 	end
 	for name, data in pairs(ItemData.Consumables) do 
-		if data.Rarity == targetRarity then 
-			if not string.find(string.lower(name), "disc") then
-				table.insert(pool, name) 
-			end
-		end 
+		if data.Rarity == targetRarity then table.insert(pool, name) end 
 	end
 
 	if #pool > 0 then
@@ -220,9 +189,9 @@ local function HandleGiftboxDrop(player, targetRarity)
 			local sellVal = itemData and (itemData.SellPrice or math.floor((itemData.Cost or 50) / 2)) or 25
 			local leaderstats = player:FindFirstChild("leaderstats")
 			if leaderstats and leaderstats:FindFirstChild("Yen") then
-				leaderstats.Yen.Value += sellVal
+				leaderstats.Yen.Value += sellVal -- Kept leaderstats key as 'Yen' so old saves don't break, but displays as Dews
 			end
-			return "You opened the box and found a " .. itemName .. ", but it was Auto-Sold for ¥" .. sellVal .. "!"
+			return "You opened the box and found a " .. itemName .. ", but it was Auto-Sold for " .. sellVal .. " Dews!"
 		else
 			local currentInv = GameData.GetInventoryCount(player)
 			local maxInv = GameData.GetMaxInventory(player)
@@ -242,7 +211,7 @@ UseItemRemote.OnServerEvent:Connect(function(player, itemName)
 		local message = ""
 		local prestige = player.leaderstats.Prestige.Value
 		local statCap = GameData.GetStatCap(prestige)
-		local myStand = player:GetAttribute("Stand") or "None"
+		local myTitan = player:GetAttribute("Titan") or "None"
 		local itemConsumed = true
 
 		if ItemData.Equipment[itemName] then
@@ -253,33 +222,42 @@ UseItemRemote.OnServerEvent:Connect(function(player, itemName)
 			return
 		end
 
-		local isStandItem = (itemName == "Stand Arrow" or itemName == "Saint's Corpse Part" or itemName == "Stand Disc" or itemName == "Requiem Arrow" or itemName == "Dio's Diary" or itemName == "Saint's Left Arm" or itemName == "Saint's Right Eye" or itemName == "Saint's Pelvis" or itemName == "Saint's Heart" or itemName == "Saint's Spine" or itemName == "Strange Arrow" or itemName == "Green Baby" or itemName == "Rokakaka" or (string.find(itemName, "Disc") and itemName ~= "Memory Disc" and itemName ~= "Heavenly Stand Disc"))
-		local isStyleItem = (itemName == "Memory Disc" or itemName == "Boxing Manual" or itemName == "Vampire Mask" or itemName == "Hamon Manual" or itemName == "Cyborg Blueprints" or itemName == "Ancient Mask" or itemName == "Steel Ball" or itemName == "Perfect Aja Mask" or itemName == "Golden Spin Scroll")
+		local isTitanItem = (itemName == "Standard Titan Serum" or itemName == "Founder's Memory Wipe" or itemName == "Spinal Fluid Syringe" or itemName == "Ymir's Clay Fragment")
+		local isStyleItem = (itemName == "Scout Training Manual" or itemName == "Marleyan Combat Manual" or itemName == "Thunder Spear Crate" or itemName == "Anti-Personnel Blueprint")
 
-		if isStandItem and player:GetAttribute("StandLocked") then
-			NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Stand is locked! Unlock it to use this item.</font>")
+		if isTitanItem and player:GetAttribute("TitanLocked") then
+			NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Titan is locked! Unlock it to use this item.</font>")
 			return
 		end
 
 		if isStyleItem and player:GetAttribute("StyleLocked") then
-			NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Fighting Style is locked! Unlock it to use this item.</font>")
+			NotificationEvent:FireClient(player, "<font color='#FF5555'>Your Combat Style is locked! Unlock it to use this item.</font>")
 			return
 		end
 
-		local function EvolveStand(newStand)
-			player:SetAttribute("Stand", newStand)
-			local stats = StandData.Stands[newStand].Stats
-			for statName, rank in pairs(stats) do
-				player:SetAttribute("Stand_"..statName, rank)
+		local function EvolveTitan(newTitan)
+			player:SetAttribute("Titan", newTitan)
+			-- If the evolved Titan doesn't natively exist in TitanData, we can hardcode fallback stats here
+			local tData = TitanData.Titans[newTitan]
+			if tData then
+				for statName, rank in pairs(tData.Stats) do player:SetAttribute("Titan_"..statName, rank) end
+			else
+				-- Hardcoded stats for "Awakened Attack Titan" if not strictly registered in TitanData yet
+				player:SetAttribute("Titan_Power", "S")
+				player:SetAttribute("Titan_Speed", "S")
+				player:SetAttribute("Titan_Hardening", "A")
+				player:SetAttribute("Titan_Endurance", "S")
+				player:SetAttribute("Titan_Precision", "A")
+				player:SetAttribute("Titan_Potential", "S")
 			end
 		end
 
 		if itemName == "Legendary Giftbox" then
 			message = HandleGiftboxDrop(player, "Legendary")
-
 		elseif itemName == "Mythical Giftbox" then
 			message = HandleGiftboxDrop(player, "Mythical")
 
+			-- [[ GAMEPASSES ]]
 		elseif itemName == "2x Battle Speed Pass" then
 			if player:GetAttribute("Has2xBattleSpeed") then message = "You already own this pass!"; itemConsumed = false
 			else player:SetAttribute("Has2xBattleSpeed", true); message = "Unlocked 2x Battle Speed!" end
@@ -292,12 +270,12 @@ UseItemRemote.OnServerEvent:Connect(function(player, itemName)
 		elseif itemName == "Auto Training Pass" then
 			if player:GetAttribute("HasAutoTraining") then message = "You already own this pass!"; itemConsumed = false
 			else player:SetAttribute("HasAutoTraining", true); message = "Unlocked Auto Training!" end
-		elseif itemName == "Stand Storage Slot 2" then
-			if player:GetAttribute("HasStandSlot2") then message = "You already own this pass!"; itemConsumed = false
-			else player:SetAttribute("HasStandSlot2", true); message = "Unlocked Stand Storage Slot 2!" end
-		elseif itemName == "Stand Storage Slot 3" then
-			if player:GetAttribute("HasStandSlot3") then message = "You already own this pass!"; itemConsumed = false
-			else player:SetAttribute("HasStandSlot3", true); message = "Unlocked Stand Storage Slot 3!" end
+		elseif itemName == "Titan Storage Slot 2" then
+			if player:GetAttribute("HasTitanSlot2") then message = "You already own this pass!"; itemConsumed = false
+			else player:SetAttribute("HasTitanSlot2", true); message = "Unlocked Titan Storage Slot 2!" end
+		elseif itemName == "Titan Storage Slot 3" then
+			if player:GetAttribute("HasTitanSlot3") then message = "You already own this pass!"; itemConsumed = false
+			else player:SetAttribute("HasTitanSlot3", true); message = "Unlocked Titan Storage Slot 3!" end
 		elseif itemName == "Style Storage Slot 2" then
 			if player:GetAttribute("HasStyleSlot2") then message = "You already own this pass!"; itemConsumed = false
 			else player:SetAttribute("HasStyleSlot2", true); message = "Unlocked Style Storage Slot 2!" end
@@ -307,218 +285,80 @@ UseItemRemote.OnServerEvent:Connect(function(player, itemName)
 		elseif itemName == "Auto-Roll Pass" then
 			if player:GetAttribute("HasAutoRoll") then message = "You already own this pass!"; itemConsumed = false
 			else player:SetAttribute("HasAutoRoll", true); message = "Unlocked Auto-Roll!" end
-		elseif itemName == "Custom Horse Name" then
-			if player:GetAttribute("HasHorseNamePass") then message = "You already own this pass!"; itemConsumed = false
-			else player:SetAttribute("HasHorseNamePass", true); message = "Unlocked Custom Horse Names!" end
 
-		elseif itemName == "Stand Arrow" then
-			local pBoosts = GetPlayerBoosts(player)
-			local currentStandPity = player:GetAttribute("StandPity") or 0
-			local currentTraitPity = player:GetAttribute("TraitPity") or 0
+			-- [[ TITAN CONSUMABLES ]]
+		elseif itemName == "Standard Titan Serum" then
+			local currentTitanPity = player:GetAttribute("TitanPity") or 0
+			local newTitan = TitanData.RollTitan(currentTitanPity)
+			local newTrait = TitanData.RollTrait()
 
-			local newStand = StandData.RollStand(pBoosts.Luck, currentStandPity)
-			local newTrait = StandData.RollTrait(pBoosts.Luck, currentTraitPity)
+			if TitanData.Titans[newTitan] and TitanData.Titans[newTitan].Rarity == "Legendary" then player:SetAttribute("TitanPity", 0)
+			else player:SetAttribute("TitanPity", currentTitanPity + 1) end
 
-			if StandData.Stands[newStand].Rarity == "Legendary" then player:SetAttribute("StandPity", 0)
-			else player:SetAttribute("StandPity", currentStandPity + 1) end
+			-- Also roll Clan if the player doesn't have one
+			if player:GetAttribute("Clan") == "None" or not player:GetAttribute("Clan") then
+				local newClan = TitanData.RollClan()
+				player:SetAttribute("Clan", newClan)
+				NotificationEvent:FireClient(player, "<font color='#FFD700'>Lineage Discovered: " .. newClan .. "!</font>")
+			end
 
-			local traitData = StandData.Traits[newTrait]
-			if traitData and traitData.Rarity == "Mythical" then player:SetAttribute("TraitPity", 0)
-			else player:SetAttribute("TraitPity", currentTraitPity + 1) end
+			player:SetAttribute("Titan", newTitan)
+			player:SetAttribute("TitanTrait", newTrait)
 
-			player:SetAttribute("Stand", newStand)
-			player:SetAttribute("StandTrait", newTrait)
-
-			local stats = StandData.Stands[newStand].Stats
-			for statName, rank in pairs(stats) do player:SetAttribute("Stand_"..statName, rank) end
+			if TitanData.Titans[newTitan] then
+				for statName, rank in pairs(TitanData.Titans[newTitan].Stats) do player:SetAttribute("Titan_"..statName, rank) end
+			end
 
 			local traitTag = newTrait ~= "None" and " ("..newTrait..")" or ""
-			message = "You were pierced by the arrow! Awakened Stand: " .. newStand .. traitTag .. "!"
+			message = "You injected the Serum! Awakened Titan: " .. newTitan .. traitTag .. "!"
 
-		elseif itemName == "Saint's Corpse Part" then
-			local pBoosts = GetPlayerBoosts(player)
-			local currentStandPity = player:GetAttribute("StandPity") or 0
-			local currentTraitPity = player:GetAttribute("TraitPity") or 0
-
-			local newStand = StandData.RollStand(pBoosts.Luck, currentStandPity, "Corpse")
-			local newTrait = StandData.RollTrait(pBoosts.Luck, currentTraitPity)
-
-			if StandData.Stands[newStand].Rarity == "Legendary" then player:SetAttribute("StandPity", 0)
-			else player:SetAttribute("StandPity", currentStandPity + 1) end
-
-			local traitData = StandData.Traits[newTrait]
-			if traitData and traitData.Rarity == "Mythical" then player:SetAttribute("TraitPity", 0)
-			else player:SetAttribute("TraitPity", currentTraitPity + 1) end
-
-			player:SetAttribute("Stand", newStand)
-			player:SetAttribute("StandTrait", newTrait)
-
-			local stats = StandData.Stands[newStand].Stats
-			for statName, rank in pairs(stats) do player:SetAttribute("Stand_"..statName, rank) end
-
-			local traitTag = newTrait ~= "None" and " ("..newTrait..")" or ""
-			message = "The corpse part fuses with you! Awakened Stand: " .. newStand .. traitTag .. "!"	
-
-		elseif itemName == "Memory Disc" then
-			if player:GetAttribute("FightingStyle") == "None" then
-				message = "You don't have a Fighting Style to forget!"
-				itemConsumed = false
+		elseif itemName == "Spinal Fluid Syringe" then
+			if myTitan == "None" then
+				message = "You don't have a Titan to mutate!"; itemConsumed = false
 			else
-				player:SetAttribute("FightingStyle", "None")
-				message = "Your memory fades. Fighting Style removed."
-			end
-
-		elseif itemName == "Stand Disc" then
-			if myStand == "None" then
-				message = "You don't have a Stand to extract!"
-				itemConsumed = false
-			else
-				player:SetAttribute("Stand", "None")
-				player:SetAttribute("StandTrait", "None")
-				local standStatsList = {"Power", "Speed", "Range", "Durability", "Precision", "Potential"}
-				for _, s in ipairs(standStatsList) do player:SetAttribute("Stand_" .. s, "None") end
-				message = "Your Stand and Trait have been extracted!"
-			end
-
-		elseif itemName == "Heavenly Stand Disc" then
-			if prestige >= 5 then
-				local rollCount = math.floor(prestige/5)
-				local newMods = RollModifiers(rollCount)
-				player:SetAttribute("UniverseModifier", newMods)
-				message = "A heavenly glow surrounds you. Your Universe Modifiers have been rerolled!"
-			else
-				message = "You must be at least Prestige 5 to have Universe Modifiers!"
-				itemConsumed = false
-			end
-
-		elseif itemName == "Boxing Manual" then
-			player:SetAttribute("FightingStyle", "Boxing"); message = "You read the manual. Gained Boxing Style."
-		elseif itemName == "Vampire Mask" then
-			player:SetAttribute("FightingStyle", "Vampirism"); message = "I REJECT MY HUMANITY! Gained Vampirism Style."
-		elseif itemName == "Hamon Manual" then
-			player:SetAttribute("FightingStyle", "Hamon"); message = "Your breathing stabilized. Gained Hamon Style."
-		elseif itemName == "Cyborg Blueprints" then
-			player:SetAttribute("FightingStyle", "Cyborg"); message = "German science is the best! Gained Cyborg Style."
-		elseif itemName == "Ancient Mask" then
-			player:SetAttribute("FightingStyle", "Pillarman"); message = "Awakened ancient biology! Gained Pillarman Style."
-		elseif itemName == "Steel Ball" then
-			player:SetAttribute("FightingStyle", "Spin"); message = "You grasped the rotation! Gained Spin Style."
-		elseif itemName == "Perfect Aja Mask" then
-			if player:GetAttribute("FightingStyle") == "Pillarman" then
-				player:SetAttribute("FightingStyle", "Ultimate Lifeform")
-				message = "The mask pierces your brain! You have evolved into the Ultimate Lifeform!"
-			else
-				message = "You must be a Pillarman to survive using this mask!"
-				itemConsumed = false
-			end
-		elseif itemName == "Golden Spin Scroll" then
-			if player:GetAttribute("FightingStyle") == "Spin" then
-				player:SetAttribute("FightingStyle", "Golden Spin")
-				message = "You comprehend the golden ratio! Your Spin has evolved into the Golden Spin!"
-			else
-				message = "You must master the base Spin style to understand this scroll!"
-				itemConsumed = false
-			end
-
-		elseif itemName == "Weather Report Disc" then
-			player:SetAttribute("Stand", "Weather Report"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken Weather Report!"
-		elseif itemName == "Heaven's Door Disc" then
-			player:SetAttribute("Stand", "Heaven's Door"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken Heaven's Door!"
-		elseif itemName == "The Hand Disc" then
-			player:SetAttribute("Stand", "The Hand"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken The Hand!"
-		elseif itemName == "Metallica Disc" then
-			player:SetAttribute("Stand", "Metallica"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken Metallica!"
-		elseif itemName == "The World Disc" then
-			player:SetAttribute("Stand", "The World"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken The World!"
-		elseif itemName == "Star Platinum Disc" then
-			player:SetAttribute("Stand", "Star Platinum"); player:SetAttribute("StandTrait", "None"); message = "You insert the disc into your head and awaken Star Platinum!"
-
-		elseif itemName == "Requiem Arrow" then
-			if prestige >= 5 then
-				if myStand == "Gold Experience" then EvolveStand("Gold Experience Requiem"); message = "Your stand evolved into Gold Experience Requiem!"
-				elseif myStand == "Silver Chariot" then EvolveStand("Chariot Requiem"); message = "Your stand evolved into Chariot Requiem!"
-				elseif myStand == "King Crimson" then EvolveStand("King Crimson Requiem"); message = "Your stand evolved into King Crimson Requiem!"
-				elseif (myStand ~= "Chariot Requiem" and myStand ~= "Gold Experience Requiem" and myStand ~= "King Crimson Requiem" and myStand ~= "None") then
-					player:SetAttribute("StandTrait", "Requiem"); message = "The arrow accepts you, greedily worming it's way into your stand's body..."
-				else	
-					message = "The arrow falls through your graps, rejecting you."; itemConsumed = false
-				end
-			else
-				message = "You must be at least Prestige 5 to use this!"; itemConsumed = false
-			end
-
-		elseif itemName == "Dio's Diary" then
-			if myStand == "Star Platinum" then EvolveStand("Star Platinum: The World"); message = "Your Stand evolved into Star Platinum: The World!"
-			elseif myStand == "C-Moon" then EvolveStand("Made in Heaven"); message = "Your Stand evolved into Made in Heaven!"
-			else
-				local bonusXP = math.floor((3000 * (1 + prestige)))
-				player:SetAttribute("XP", (player:GetAttribute("XP") or 0) + bonusXP)
-				message = "You read the diary. Gained " .. bonusXP .. " XP!"
-				if (myStand ~= "Star Platinum: The World" and myStand ~= "Star Platinum: Over Heaven" and myStand ~= "The World" and myStand ~= "The World: Over Heaven" and myStand ~= "None") then
-					if (math.random(1,100) <= 5) then
-						player:SetAttribute("StandTrait", "Overheaven")
-						message = "You begin to understand the writing, you unlock forbidden knowledge... Your stand has evolved into Over Heaven!"
-					end
-				end
-			end
-
-		elseif itemName == "Saint's Left Arm" then
-			if myStand == "Tusk Act 1" then EvolveStand("Tusk Act 2"); message = "You fuse with the Left Arm! Your Stand evolved into Tusk Act 2!"
-			else message = "The Corpse Part has no reaction to this stand."; itemConsumed = false end
-
-		elseif itemName == "Saint's Right Eye" then
-			if myStand == "Tusk Act 2" then EvolveStand("Tusk Act 3"); message = "You fuse with the Right Eye! Your Stand evolved into Tusk Act 3!"
-			elseif myStand == "The World" then EvolveStand("The World: High Voltage"); message = "You fuse with the Right Eye! Your Stand evolved into The World: High Voltage!"
-			else message = "The Corpse Part has no reaction to this stand."; itemConsumed = false end
-
-		elseif itemName == "Saint's Pelvis" then
-			if myStand == "Tusk Act 3" then EvolveStand("Tusk Act 4"); message = "You fuse with the Pelvis and master the infinite rotation! Your Stand evolved into Tusk Act 4!"
-			else message = "The Corpse Part has no reaction to this stand."; itemConsumed = false end
-
-		elseif itemName == "Saint's Heart" then
-			if myStand == "Dirty Deeds Done Dirt Cheap" then EvolveStand("D4C Love Train"); message = "The holy light of the Heart protects you! Your Stand evolved into D4C Love Train!"
-			else message = "The Corpse Part has no reaction to this stand."; itemConsumed = false end
-
-		elseif itemName == "Saint's Spine" then
-			if myStand == "The World" then EvolveStand("The World: Over Heaven"); message = "Your stand has evolved into The World: Over Heaven!"
-			elseif myStand == "Star Platinum: The World" then EvolveStand("Star Platinum: Over Heaven"); message = "Your stand has evolved into Star Platinum: Over Heaven!"
-			else message = "The Corpse Part has no reaction to this stand."; itemConsumed = false end
-
-		elseif itemName == "Strange Arrow" then
-			if myStand == "Killer Queen" then EvolveStand("Killer Queen BTD"); message = "Your Stand evolved into Killer Queen BTD!"
-			elseif myStand == "Echoes Act 1" then EvolveStand("Echoes Act 2"); message = "Your Stand evolved into Echoes Act 2!"
-			elseif myStand == "Echoes Act 2" then EvolveStand("Echoes Act 3"); message = "Your Stand evolved into Echoes Act 3!"
-			else
-				player:SetAttribute("Stand_Power", "S"); player:SetAttribute("Stand_Power_Val", math.min(statCap, (player:GetAttribute("Stand_Power_Val") or 0) + 30))
-				player:SetAttribute("Stand_Potential", "S"); player:SetAttribute("Stand_Potential_Val", math.min(statCap, (player:GetAttribute("Stand_Potential_Val") or 0) + 30))
-				message = "Your Stand's Power and Potential evolved to Rank S!"
-			end
-
-		elseif itemName == "Green Baby" then
-			if myStand == "Whitesnake" then EvolveStand("C-Moon"); message = "Your Stand evolved into C-Moon!"
-			else
-				player:SetAttribute("Speed", math.min(statCap, (player:GetAttribute("Speed") or 5) + 25))
-				player:SetAttribute("Defense", math.min(statCap, (player:GetAttribute("Defense") or 5) + 25))
-				message = "You fused with the Green Baby. Massive Speed/Defense boost!"
-			end
-
-		elseif itemName == "Rokakaka" then
-			if myStand == "None" then
-				message = "You don't have a Stand to reroll!"; itemConsumed = false
-			else
-				local pBoosts = GetPlayerBoosts(player)
 				local currentTraitPity = player:GetAttribute("TraitPity") or 0
-				local newTrait = StandData.RollTrait(pBoosts.Luck, currentTraitPity)
+				local newTrait = TitanData.RollTrait()
 
-				player:SetAttribute("StandTrait", newTrait)
+				player:SetAttribute("TitanTrait", newTrait)
+				if newTrait == "Transcendent" or newTrait == "Awakened" then player:SetAttribute("TraitPity", 0) else player:SetAttribute("TraitPity", currentTraitPity + 1) end
 
-				local traitData = StandData.Traits[newTrait]
-				if traitData and (traitData.Rarity == "Mythical" or traitData.Rarity == "Legendary") then player:SetAttribute("TraitPity", 0) else player:SetAttribute("TraitPity", currentTraitPity + 1) end
-
-				local traitColor = StandData.Traits[newTrait] and StandData.Traits[newTrait].Color or "#FFFFFF"
-				local traitDisplay = newTrait ~= "None" and "<font color='"..traitColor.."'>["..newTrait.."]</font>" or "None"
-				message = "You consumed the Rokakaka! Your Stand's trait is now: " .. traitDisplay .. "!"
+				local traitDisplay = newTrait ~= "None" and "<font color='#FFFF55'>["..newTrait.."]</font>" or "None"
+				message = "You injected the Spinal Fluid! Your Titan's trait mutated into: " .. traitDisplay .. "!"
 			end
+
+		elseif itemName == "Founder's Memory Wipe" then
+			if myTitan == "None" and player:GetAttribute("FightingStyle") == "None" then
+				message = "You have no memories or powers to wipe!"; itemConsumed = false
+			else
+				player:SetAttribute("Titan", "None")
+				player:SetAttribute("TitanTrait", "None")
+				player:SetAttribute("FightingStyle", "None")
+				local titanStatsList = {"Power", "Speed", "Hardening", "Endurance", "Precision", "Potential"}
+				for _, s in ipairs(titanStatsList) do player:SetAttribute("Titan_" .. s, "None") end
+				message = "Your memories fade. You are a blank slate once again."
+			end
+
+		elseif itemName == "Ymir's Clay Fragment" then
+			-- The "Solo Leveling" Diamond in the Rough Feature
+			if myTitan == "Attack Titan" then 
+				EvolveTitan("Awakened Attack Titan") 
+				message = "Ymir's memory floods your mind! Your Attack Titan has evolved into the Awakened Attack Titan!"
+			else 
+				message = "The fragment has no reaction to this Titan."; itemConsumed = false 
+			end
+
+			-- [[ COMBAT STYLES & CLANS ]]
+		elseif itemName == "Ackerman Awakening Pill" then
+			player:SetAttribute("Clan", "Ackerman")
+			message = "A surge of violent instinct takes over! You have awakened the Ackerman Lineage!"
+		elseif itemName == "Scout Training Manual" then
+			player:SetAttribute("FightingStyle", "Ultrahard Steel Blades"); message = "You read the manual. Gained Ultrahard Steel Blades Combat Style."
+		elseif itemName == "Marleyan Combat Manual" then
+			player:SetAttribute("FightingStyle", "Marleyan Rifle"); message = "You studied Marleyan tactics. Gained Marleyan Rifle Combat Style."
+		elseif itemName == "Thunder Spear Crate" then
+			player:SetAttribute("FightingStyle", "Thunder Spears"); message = "You acquired explosive payloads. Gained Thunder Spears Combat Style."
+		elseif itemName == "Anti-Personnel Blueprint" then
+			player:SetAttribute("FightingStyle", "Anti-Personnel Firearms"); message = "You learned urban combat techniques. Gained Anti-Personnel Firearms Style."
 		else
 			itemConsumed = false
 		end
