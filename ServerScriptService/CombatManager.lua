@@ -101,6 +101,7 @@ local function StartBattle(player, encounterType)
 			IsPlayer = true, IsAlly = false, Name = player.Name, GlobalDmgBoost = activeBoosts.Damage, PlayerObj = player,
 			Titan = pTitan, Style = player:GetAttribute("FightingStyle") or "None", Clan = player:GetAttribute("Clan") or "None",
 			HP = pHP * 10, MaxHP = pHP * 10,
+			TitanEnergy = 0,
 			TotalStrength = pStr, TotalDefense = pDef, TotalSpeed = pSpd, TotalWillpower = pWill, TotalPrecision = tPre,
 			BlockTurns = 0, StunImmunity = 0, ConfusionImmunity = 0, WillpowerSurvivals = 0, Statuses = { Stun = 0, Poison = 0, Burn = 0, Bleed = 0, Freeze = 0, Confusion = 0 }, Cooldowns = {}
 		},
@@ -120,6 +121,10 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	local skill = SkillData.Skills[skillName]
 
 	if battle.Player.Cooldowns[skillName] and battle.Player.Cooldowns[skillName] > 0 then return end
+
+	local nrgCost = skill.EnergyCost or 0
+	if (battle.Player.TitanEnergy or 0) < nrgCost then return end
+
 	battle.IsProcessing = true
 	local waitMultiplier = player:GetAttribute("Has2xBattleSpeed") and 0.6 or 1.2
 
@@ -134,7 +139,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 			task.wait(waitMultiplier)
 		else 
 			warn("Combat Strike Error: ", msg) 
-			-- FORCES THE ERROR TO SHOW ON SCREEN IF IT CRASHES
 			CombatUpdate:FireClient(player, "TurnStrike", {Battle = battle, LogMsg = "<font color='#FF0000'>SERVER CRASH: " .. tostring(msg) .. "</font>", DidHit = false, ShakeType = "None"})
 			battle.IsProcessing = false
 			return
