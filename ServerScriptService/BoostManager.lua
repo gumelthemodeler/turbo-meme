@@ -1,4 +1,5 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
@@ -16,10 +17,10 @@ local function CheckSupporterStatus(player, isManualCheck)
 		if player:GetAttribute("ClaimedSupporterReward") == false then
 			player:SetAttribute("ClaimedSupporterReward", true)
 
-			player:SetAttribute("StandArrowCount", (player:GetAttribute("StandArrowCount") or 0) + 5)
-			player:SetAttribute("RokakakaCount", (player:GetAttribute("RokakakaCount") or 0) + 3)
+			player:SetAttribute("StandardTitanSerumCount", (player:GetAttribute("StandardTitanSerumCount") or 0) + 5)
+			player:SetAttribute("FoundersMemoryWipeCount", (player:GetAttribute("FoundersMemoryWipeCount") or 0) + 3)
 
-			Network.CombatUpdate:FireClient(player, "SystemMessage", "<font color='#FFD700'><b>SUPPORTER REWARD:</b> +5 Stand Arrows, +3 Rokakakas!</font>")
+			Network.CombatUpdate:FireClient(player, "SystemMessage", "<font color='#FFD700'><b>SUPPORTER REWARD:</b> +5 Titan Serums, +3 Memory Wipes!</font>")
 		elseif isManualCheck then
 			Network.CombatUpdate:FireClient(player, "SystemMessage", "<font color='#55FF55'>Supporter status verified! Boosts active.</font>")
 		end
