@@ -5,8 +5,11 @@ local CombatTab = {}
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 local Network = ReplicatedStorage:WaitForChild("Network")
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
+local SFXManager = require(script.Parent:WaitForChild("SFXManager"))
+local StoryTab = require(script.Parent:WaitForChild("StoryTab"))
 
 local player = Players.LocalPlayer
 local MainFrame
@@ -23,7 +26,7 @@ local currentLog = ""
 local function ShakeUI(intensity)
 	if not intensity or intensity == "None" then return end
 	local amount = (intensity == "Heavy") and 15 or 6
-	local originalPos = UDim2.new(0, 0, 0, 0)
+	local originalPos = UDim2.new(0.5, 0, 0.48, 0)
 
 	task.spawn(function()
 		for i = 1, 10 do
@@ -66,25 +69,35 @@ end
 local function AddLogMessage(msgText, append)
 	if not msgText or msgText == "" then return end
 	if append then
-		currentLog = currentLog .. "\n" .. msgText
+		currentLog = currentLog .. "\n\n" .. msgText
 	else
 		currentLog = msgText
 	end
 
 	LogText.Text = currentLog
 
-	task.defer(function()
-		LogScroll.CanvasPosition = Vector2.new(0, LogText.AbsoluteSize.Y + 99999)
+	task.spawn(function()
+		RunService.RenderStepped:Wait()
+		LogScroll.CanvasPosition = Vector2.new(0, LogScroll.AbsoluteCanvasSize.Y + 9999)
 	end)
 end
 
-function CombatTab.Init(parentFrame)
+function CombatTab.Init(parentFrame, tooltipMgr, switchTabFunc)
+
+	StoryTab.Init(parentFrame, tooltipMgr, nil, nil)
+
 	MainFrame = Instance.new("Frame", parentFrame.Parent)
 	MainFrame.Name = "CombatFrame"
-	MainFrame.Size = UDim2.new(1, 0, 1, 0)
-	MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+	MainFrame.Size = UDim2.new(0.85, 0, 0.85, 0)
+	MainFrame.Position = UDim2.new(0.5, 0, 0.48, 0)
+	MainFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+	MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	MainFrame.Visible = false
 	MainFrame.ZIndex = 200
+	Instance.new("UICorner", MainFrame).CornerRadius = UDim.new(0, 12)
+	local outerStroke = Instance.new("UIStroke", MainFrame)
+	outerStroke.Thickness = 3
+	outerStroke.Color = Color3.fromRGB(255, 210, 60)
 
 	WaveLabel = Instance.new("TextLabel", MainFrame)
 	WaveLabel.Size = UDim2.new(1, 0, 0, 40)
@@ -100,7 +113,6 @@ function CombatTab.Init(parentFrame)
 	CenterArea.Position = UDim2.new(0.05, 0, 0.1, 0)
 	CenterArea.BackgroundTransparency = 1
 
-	-- [[ PLAYER STATS ]]
 	local PlayerPanel = Instance.new("Frame", CenterArea)
 	PlayerPanel.Size = UDim2.new(0.4, 0, 0.2, 0)
 	PlayerPanel.Position = UDim2.new(0, 0, 0, 0)
@@ -110,10 +122,10 @@ function CombatTab.Init(parentFrame)
 	PlayerNameText.Size = UDim2.new(1, 0, 0, 25); PlayerNameText.BackgroundTransparency = 1; PlayerNameText.Font = Enum.Font.GothamBlack; PlayerNameText.TextColor3 = Color3.fromRGB(255, 255, 255); PlayerNameText.TextSize = 18; PlayerNameText.TextXAlignment = Enum.TextXAlignment.Left
 	PlayerNameText.Text = player.Name
 
-	PlayerHPBar, PlayerHPText = CreateBar(PlayerPanel, Color3.fromRGB(60, 180, 60), 30, UDim2.new(1, 0, 0, 25), "HP: 100/100")
+	PlayerHPBar, PlayerHPText = CreateBar(PlayerPanel, Color3.fromRGB(80, 200, 80), 30, UDim2.new(1, 0, 0, 25), "HP: 100/100")
 	PlayerNrgBar, PlayerNrgText, PlayerNrgContainer = CreateBar(PlayerPanel, Color3.fromRGB(255, 120, 40), 60, UDim2.new(0.8, 0, 0, 18), "TITAN HEAT: 0/100")
+	PlayerNrgContainer.Visible = false
 
-	-- [[ ENEMY STATS ]]
 	local EnemyPanel = Instance.new("Frame", CenterArea)
 	EnemyPanel.Size = UDim2.new(0.4, 0, 0.2, 0)
 	EnemyPanel.Position = UDim2.new(0.6, 0, 0, 0)
@@ -125,7 +137,6 @@ function CombatTab.Init(parentFrame)
 
 	EnemyHPBar, EnemyHPText = CreateBar(EnemyPanel, Color3.fromRGB(200, 60, 60), 30, UDim2.new(1, 0, 0, 25), "HP: 100/100")
 
-	-- [[ COMBAT FEED ]]
 	local FeedBox = Instance.new("Frame", CenterArea)
 	FeedBox.Size = UDim2.new(1, 0, 0.45, 0)
 	FeedBox.Position = UDim2.new(0, 0, 0.25, 0)
@@ -142,32 +153,33 @@ function CombatTab.Init(parentFrame)
 	LogScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 100, 60)
 	LogScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y 
 
-	-- Centralized Single TextLabel (Guarantees Text Shows)
+	local logLayout = Instance.new("UIListLayout", LogScroll)
+	logLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
+	logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
 	LogText = Instance.new("TextLabel", LogScroll)
 	LogText.Size = UDim2.new(1, -5, 0, 0)
 	LogText.AutomaticSize = Enum.AutomaticSize.Y
 	LogText.BackgroundTransparency = 1
 	LogText.Font = Enum.Font.GothamMedium
 	LogText.TextColor3 = Color3.fromRGB(230, 230, 230)
-	LogText.TextSize = 15
+	LogText.TextSize = 16
 	LogText.TextXAlignment = Enum.TextXAlignment.Left
 	LogText.TextYAlignment = Enum.TextYAlignment.Top
 	LogText.TextWrapped = true
 	LogText.RichText = true
 	LogText.Text = ""
 
-	-- [[ ACTION GRID ]]
 	ActionGrid = Instance.new("Frame", CenterArea)
 	ActionGrid.Size = UDim2.new(1, 0, 0.25, 0)
 	ActionGrid.Position = UDim2.new(0, 0, 0.75, 0)
 	ActionGrid.BackgroundTransparency = 1
 
 	local gridLayout = Instance.new("UIGridLayout", ActionGrid)
-	gridLayout.CellSize = UDim2.new(0.31, 0, 0, 45) -- Fits 3 columns nicely
+	gridLayout.CellSize = UDim2.new(0.31, 0, 0, 45) 
 	gridLayout.CellPadding = UDim2.new(0.02, 0, 0, 10)
 	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
 
-	-- [[ LEAVE BATTLE BUTTON ]]
 	LeaveBtn = Instance.new("TextButton", MainFrame)
 	LeaveBtn.Size = UDim2.new(0.3, 0, 0, 50)
 	LeaveBtn.Position = UDim2.new(0.35, 0, 0.9, 0)
@@ -177,13 +189,18 @@ function CombatTab.Init(parentFrame)
 	Instance.new("UICorner", LeaveBtn).CornerRadius = UDim.new(0, 6)
 
 	LeaveBtn.MouseButton1Click:Connect(function()
+		SFXManager.Play("Click")
 		MainFrame.Visible = false
 		isBattleActive = false
-		parentFrame.Parent.TopBar.Visible = true
-		parentFrame.Parent.NavBar.Visible = true
+
+		-- SAFELY restore UI bars without crashing
+		local topGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
+		if topGui then
+			if topGui:FindFirstChild("TopBar") then topGui.TopBar.Visible = true end
+			if topGui:FindFirstChild("NavBar") then topGui.NavBar.Visible = true end
+		end
 	end)
 
-	-- [[ DYNAMIC SKILL POPULATION & LOCKING ]]
 	local function LockGrid()
 		inputLocked = true
 		for _, btn in ipairs(ActionGrid:GetChildren()) do
@@ -227,9 +244,18 @@ function CombatTab.Init(parentFrame)
 
 			btn.MouseButton1Click:Connect(function()
 				if isBattleActive and not inputLocked and isReady then
+					SFXManager.Play("Click")
+					if tooltipMgr then tooltipMgr.Hide() end
 					LockGrid() 
 					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = sName})
 				end
+			end)
+
+			btn.MouseEnter:Connect(function()
+				if tooltipMgr then tooltipMgr.Show(sData.Description or sName) end
+			end)
+			btn.MouseLeave:Connect(function()
+				if tooltipMgr then tooltipMgr.Hide() end
 			end)
 		end
 
@@ -249,7 +275,6 @@ function CombatTab.Init(parentFrame)
 		end
 	end
 
-	-- [[ EVENT LISTENERS ]]
 	local function SyncBars(battleState)
 		local p = battleState.Player
 		local e = battleState.Enemy
@@ -258,13 +283,11 @@ function CombatTab.Init(parentFrame)
 		TweenService:Create(PlayerHPBar, tInfo, {Size = UDim2.new(math.clamp(p.HP / p.MaxHP, 0, 1), 0, 1, 0)}):Play()
 		PlayerHPText.Text = "HP: " .. math.floor(p.HP) .. " / " .. math.floor(p.MaxHP)
 
-		-- Only show Titan Heat if they are a shifter
 		if p.Titan and p.Titan ~= "None" then
 			PlayerNrgContainer.Visible = true
-			local pNrg = p.TitanEnergy or p.TitanHeat or 0
-			local pMaxNrg = 100
-			TweenService:Create(PlayerNrgBar, tInfo, {Size = UDim2.new(math.clamp(pNrg / pMaxNrg, 0, 1), 0, 1, 0)}):Play()
-			PlayerNrgText.Text = "TITAN HEAT: " .. math.floor(pNrg) .. " / " .. math.floor(pMaxNrg)
+			local pNrg = p.TitanEnergy or 0
+			TweenService:Create(PlayerNrgBar, tInfo, {Size = UDim2.new(math.clamp(pNrg / 100, 0, 1), 0, 1, 0)}):Play()
+			PlayerNrgText.Text = "TITAN HEAT: " .. math.floor(pNrg) .. " / 100"
 		else
 			PlayerNrgContainer.Visible = false
 		end
@@ -285,8 +308,14 @@ function CombatTab.Init(parentFrame)
 			currentLog = ""
 			LogText.Text = ""
 			MainFrame.Visible = true
-			parentFrame.Parent.TopBar.Visible = false
-			parentFrame.Parent.NavBar.Visible = false
+
+			-- SAFELY hide UI bars without crashing
+			local topGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
+			if topGui then
+				if topGui:FindFirstChild("TopBar") then topGui.TopBar.Visible = false end
+				if topGui:FindFirstChild("NavBar") then topGui.NavBar.Visible = false end
+			end
+
 			LeaveBtn.Visible = false
 			isBattleActive = true
 
@@ -298,6 +327,13 @@ function CombatTab.Init(parentFrame)
 			ShakeUI(data.ShakeType)
 			SyncBars(data.Battle)
 			AddLogMessage(data.LogMsg, true)
+
+			if string.find(data.LogMsg, "dodged!") then SFXManager.Play("CombatDodge")
+			elseif string.find(data.LogMsg, "maneuvers") then SFXManager.Play("CombatBlock")
+			elseif data.DidHit then SFXManager.Play("CombatHit")
+			else SFXManager.Play("CombatUtility") end
+
+			if string.find(data.LogMsg, "(CRIT!)", 1, true) then SFXManager.Play("CombatCrit") end
 
 		elseif action == "Update" then
 			SyncBars(data.Battle)
@@ -316,6 +352,7 @@ function CombatTab.Init(parentFrame)
 			LeaveBtn.Visible = true
 			LeaveBtn.Text = "VICTORY - RETURN"
 			LeaveBtn.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+			SFXManager.Play("CombatVictory")
 
 			AddLogMessage("\n<b><font color='#55FF55'>ENEMY DEFEATED!</font></b>", true)
 			AddLogMessage("<font color='#55FF55'>Rewards: +" .. data.XP .. " XP | +" .. data.Yen .. " Dews</font>", true)
@@ -327,6 +364,7 @@ function CombatTab.Init(parentFrame)
 			LeaveBtn.Visible = true
 			LeaveBtn.Text = "DEFEAT - RETREAT"
 			LeaveBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+			SFXManager.Play("CombatDefeat")
 
 			AddLogMessage("\n<b><font color='#FF5555'>YOU WERE SLAUGHTERED.</font></b>", true)
 
