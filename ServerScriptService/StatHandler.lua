@@ -1,7 +1,8 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
-local StandData = require(ReplicatedStorage:WaitForChild("StandData"))
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 
 local UpgradeRemote = Network:FindFirstChild("UpgradeStat")
@@ -13,9 +14,9 @@ end
 
 UpgradeRemote.OnServerEvent:Connect(function(player, statToUpgrade, amount)
 	local isBaseStat = GameData.BaseStats[statToUpgrade] ~= nil
-	local isStandStat = table.find(GameData.StandStats, statToUpgrade) ~= nil
+	local isTitanStat = table.find(GameData.TitanStats, statToUpgrade) ~= nil
 
-	if not isBaseStat and not isStandStat then return end
+	if not isBaseStat and not isTitanStat then return end
 
 	local prestige = player.leaderstats.Prestige.Value
 	local statCap = GameData.GetStatCap(prestige)
