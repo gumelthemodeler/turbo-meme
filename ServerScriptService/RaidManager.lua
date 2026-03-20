@@ -9,7 +9,12 @@ local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 local CombatCore = require(game:GetService("ServerScriptService"):WaitForChild("CombatCore"))
 
-local RaidAction = Network:WaitForChild("RaidAction")
+local RaidAction = Network:FindFirstChild("RaidAction")
+if not RaidAction then
+	RaidAction = Instance.new("RemoteEvent")
+	RaidAction.Name = "RaidAction"
+	RaidAction.Parent = Network
+end
 local RaidUpdate = Network:WaitForChild("RaidUpdate")
 
 local OpenRaidLobbies = {}
