@@ -1,8 +1,9 @@
 -- @ScriptType: Script
+-- @ScriptType: Script
 local MarketplaceService = game:GetService("MarketplaceService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
-local StandData = require(ReplicatedStorage:WaitForChild("StandData"))
+local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local Network = ReplicatedStorage:WaitForChild("Network")
 
 local function GrantItem(player, itemName, amount)
@@ -11,20 +12,20 @@ local function GrantItem(player, itemName, amount)
 	player:SetAttribute(attrName, (player:GetAttribute(attrName) or 0) + grantAmount)
 end
 
-local function PromptStandClaim(receiver, standName, traitName)
-	receiver:SetAttribute("PendingShopStand", standName)
+local function PromptTitanClaim(receiver, titanName, traitName)
+	receiver:SetAttribute("PendingShopTitan", titanName)
 	receiver:SetAttribute("PendingShopTrait", traitName)
 
-	local currentActive = receiver:GetAttribute("Stand") or "None"
-	local currentS1 = receiver:GetAttribute("StoredStand1") or "None"
-	local currentS2 = receiver:GetAttribute("StoredStand2") or "None"
-	local currentS3 = receiver:GetAttribute("StoredStand3") or "None"
-	local currentS4 = receiver:GetAttribute("StoredStand4") or "None"
-	local currentS5 = receiver:GetAttribute("StoredStand5") or "None"
+	local currentActive = receiver:GetAttribute("Titan") or "None"
+	local currentS1 = receiver:GetAttribute("StoredTitan1") or "None"
+	local currentS2 = receiver:GetAttribute("StoredTitan2") or "None"
+	local currentS3 = receiver:GetAttribute("StoredTitan3") or "None"
+	local currentS4 = receiver:GetAttribute("StoredTitan4") or "None"
+	local currentS5 = receiver:GetAttribute("StoredTitan5") or "None"
 
 	if Network:FindFirstChild("ShopUpdate") then
-		Network.ShopUpdate:FireClient(receiver, "ShowStandClaim", {
-			StandName = standName,
+		Network.ShopUpdate:FireClient(receiver, "ShowStandClaim", { -- Reusing StandClaim modal event names on client
+			StandName = titanName,
 			Active = currentActive,
 			Slot1 = currentS1,
 			Slot2 = currentS2,
@@ -88,89 +89,48 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 	local productId = receiptInfo.ProductId
 
 	if productId == 3552102461 then
-		if buyAsItem then 
-			GrantItem(receiver, "2x Battle Speed Pass"); SendPurchaseMsg("2x Battle Speed Pass (Item)")
-		else 
-			receiver:SetAttribute("Has2xBattleSpeed", true); SendPurchaseMsg("2x Battle Speed Pass") 
-		end
+		if buyAsItem then GrantItem(receiver, "2x Battle Speed Pass"); SendPurchaseMsg("2x Battle Speed Pass (Item)")
+		else receiver:SetAttribute("Has2xBattleSpeed", true); SendPurchaseMsg("2x Battle Speed Pass") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3552102647 then
-		if buyAsItem then 
-			GrantItem(receiver, "2x Inventory Pass"); SendPurchaseMsg("2x Inventory Pass (Item)")
-		else 
-			receiver:SetAttribute("Has2xInventory", true); SendPurchaseMsg("2x Inventory Pass") 
-		end
+		if buyAsItem then GrantItem(receiver, "2x Inventory Pass"); SendPurchaseMsg("2x Inventory Pass (Item)")
+		else receiver:SetAttribute("Has2xInventory", true); SendPurchaseMsg("2x Inventory Pass") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3552103016 then
-		if buyAsItem then 
-			GrantItem(receiver, "2x Drop Chance Pass"); SendPurchaseMsg("2x Drop Chance Pass (Item)")
-		else 
-			receiver:SetAttribute("Has2xDropChance", true); SendPurchaseMsg("2x Drop Chance Pass") 
-		end
+		if buyAsItem then GrantItem(receiver, "2x Drop Chance Pass"); SendPurchaseMsg("2x Drop Chance Pass (Item)")
+		else receiver:SetAttribute("Has2xDropChance", true); SendPurchaseMsg("2x Drop Chance Pass") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3552103397 then
-		if buyAsItem then 
-			GrantItem(receiver, "Auto Training Pass"); SendPurchaseMsg("Auto Training Pass (Item)")
-		else 
-			receiver:SetAttribute("HasAutoTraining", true); SendPurchaseMsg("Auto Training Pass") 
-		end
+		if buyAsItem then GrantItem(receiver, "Auto Training Pass"); SendPurchaseMsg("Auto Training Pass (Item)")
+		else receiver:SetAttribute("HasAutoTraining", true); SendPurchaseMsg("Auto Training Pass") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3552103567 then
-		if buyAsItem then 
-			GrantItem(receiver, "Stand Storage Slot 2"); SendPurchaseMsg("Stand Storage Slot 2 (Item)")
-		else 
-			receiver:SetAttribute("HasStandSlot2", true); SendPurchaseMsg("Stand Storage Slot 2") 
-		end
+		if buyAsItem then GrantItem(receiver, "Titan Storage Slot 2"); SendPurchaseMsg("Titan Storage Slot 2 (Item)")
+		else receiver:SetAttribute("HasTitanSlot2", true); SendPurchaseMsg("Titan Storage Slot 2") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3552103754 then
-		if buyAsItem then 
-			GrantItem(receiver, "Stand Storage Slot 3"); SendPurchaseMsg("Stand Storage Slot 3 (Item)")
-		else 
-			receiver:SetAttribute("HasStandSlot3", true); SendPurchaseMsg("Stand Storage Slot 3") 
-		end
-		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
-	end
-	if productId == 3554941196 then
-		local wipeEvent = ReplicatedStorage:FindFirstChild("SBRRobuxReroll")
-		if wipeEvent then wipeEvent:Fire(receiver) end
-		SendPurchaseMsg("Horse Reroll")
+		if buyAsItem then GrantItem(receiver, "Titan Storage Slot 3"); SendPurchaseMsg("Titan Storage Slot 3 (Item)")
+		else receiver:SetAttribute("HasTitanSlot3", true); SendPurchaseMsg("Titan Storage Slot 3") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3554936785 then
-		if buyAsItem then 
-			GrantItem(receiver, "Style Storage Slot 2"); SendPurchaseMsg("Style Storage Slot 2 (Item)")
-		else 
-			receiver:SetAttribute("HasStyleSlot2", true); SendPurchaseMsg("Style Storage Slot 2") 
-		end
+		if buyAsItem then GrantItem(receiver, "Style Storage Slot 2"); SendPurchaseMsg("Style Storage Slot 2 (Item)")
+		else receiver:SetAttribute("HasStyleSlot2", true); SendPurchaseMsg("Style Storage Slot 2") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3554936823 then
-		if buyAsItem then 
-			GrantItem(receiver, "Style Storage Slot 3"); SendPurchaseMsg("Style Storage Slot 3 (Item)")
-		else 
-			receiver:SetAttribute("HasStyleSlot3", true); SendPurchaseMsg("Style Storage Slot 3") 
-		end
+		if buyAsItem then GrantItem(receiver, "Style Storage Slot 3"); SendPurchaseMsg("Style Storage Slot 3 (Item)")
+		else receiver:SetAttribute("HasStyleSlot3", true); SendPurchaseMsg("Style Storage Slot 3") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3557500443 then
-		if buyAsItem then 
-			GrantItem(receiver, "Auto-Roll Pass"); SendPurchaseMsg("Auto-Roll Pass (Item)")
-		else 
-			receiver:SetAttribute("HasAutoRoll", true); SendPurchaseMsg("Auto-Roll Pass") 
-		end
-		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
-	end
-	if productId == 3557535781 then
-		if buyAsItem then 
-			GrantItem(receiver, "Custom Horse Name"); SendPurchaseMsg("Custom Horse Name (Item)")
-		else 
-			receiver:SetAttribute("HasHorseNamePass", true); SendPurchaseMsg("Custom Horse Name Pass") 
-		end
+		if buyAsItem then GrantItem(receiver, "Auto-Roll Pass"); SendPurchaseMsg("Auto-Roll Pass (Item)")
+		else receiver:SetAttribute("HasAutoRoll", true); SendPurchaseMsg("Auto-Roll Pass") end
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
@@ -180,68 +140,63 @@ MarketplaceService.ProcessReceipt = function(receiptInfo)
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
+	-- AOT Specific Packs using old product IDs to maintain your sales history
 	if productId == 3548207626 then
-		PromptStyleClaim(receiver, "Hamon"); GrantItem(receiver, "Hamon Clackers"); GrantItem(receiver, "Breathing Mask") 
-		SendPurchaseMsg("Hamon Pack")
+		PromptStyleClaim(receiver, "Ultrahard Steel Blades"); GrantItem(receiver, "Scout Training Manual")
+		SendPurchaseMsg("Scout Regiment Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3548207336 then
-		PromptStyleClaim(receiver, "Vampirism"); GrantItem(receiver, "Vampire Cape")
-		SendPurchaseMsg("Vampire Pack")
+		PromptStyleClaim(receiver, "Marleyan Rifle"); GrantItem(receiver, "Marleyan Armband")
+		SendPurchaseMsg("Warrior Candidate Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3548207175 then
-		PromptStyleClaim(receiver, "Pillarman"); GrantItem(receiver, "Red Stone of Aja")
-		SendPurchaseMsg("Pillarman Pack")
+		PromptStyleClaim(receiver, "Anti-Personnel Firearms"); GrantItem(receiver, "Anti-Personnel Pistols")
+		SendPurchaseMsg("Interior MP Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3553764779 then
-		PromptStyleClaim(receiver, "Spin"); GrantItem(receiver, "Saint's Right Eye")
-		SendPurchaseMsg("Spin Pack")
+		PromptStyleClaim(receiver, "Thunder Spears"); GrantItem(receiver, "Thunder Spear Crate")
+		SendPurchaseMsg("Heavy Ordinance Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
+	-- Mythical Titan Packs
 	if productId == 3547646703 then
-		GrantItem(receiver, "Jotaro's Hat"); GrantItem(receiver, "Dio's Diary")
-		PromptStandClaim(receiver, "Star Platinum", "Overwhelming")
-		SendPurchaseMsg("Jotaro Pack")
+		GrantItem(receiver, "Scout Regiment Cloak"); GrantItem(receiver, "Ackerman Awakening Pill")
+		PromptTitanClaim(receiver, "Attack Titan", "Overwhelming")
+		SendPurchaseMsg("Vanguard Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3547646706 then
-		PromptStyleClaim(receiver, "Vampirism"); GrantItem(receiver, "Vampire Cape"); GrantItem(receiver, "Dio's Throwing Knives")
-		PromptStandClaim(receiver, "The World", "Vampiric")
-		SendPurchaseMsg("DIO Pack")
+		GrantItem(receiver, "Spinal Fluid Syringe", 5)
+		PromptTitanClaim(receiver, "Colossal Titan", "Transcendent")
+		SendPurchaseMsg("God of Destruction Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3550839948 then
-		GrantItem(receiver, "Green Baby"); GrantItem(receiver, "Dio's Diary")
-		PromptStandClaim(receiver, "Whitesnake", "Blessed")
-		SendPurchaseMsg("Pucci Pack")
-		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
-	end
-	if productId == 3553767064 then
-		GrantItem(receiver, "Saint's Left Arm"); GrantItem(receiver, "Saint's Right Eye")
-		PromptStandClaim(receiver, "Tusk Act 1", "Cheerful")
-		SendPurchaseMsg("Johnny Pack")
+		GrantItem(receiver, "Ymir's Clay Fragment"); GrantItem(receiver, "Founder's Memory Wipe", 10)
+		PromptTitanClaim(receiver, "Founding Titan", "Awakened")
+		SendPurchaseMsg("Coordinate Pack")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 
 	if productId == 3550862625 then
-		GrantItem(receiver, "Stand Arrow", 25)
-		SendPurchaseMsg("25x Stand Arrows")
+		GrantItem(receiver, "Standard Titan Serum", 25)
+		SendPurchaseMsg("25x Titan Serums")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3550862858 then
-		GrantItem(receiver, "Rokakaka", 5)
-		SendPurchaseMsg("5x Rokakakas")
+		GrantItem(receiver, "Founder's Memory Wipe", 5)
+		SendPurchaseMsg("5x Memory Wipes")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
 	if productId == 3553771635 then
-		GrantItem(receiver, "Saint's Corpse Part", 10)
-		SendPurchaseMsg("10x Saint's Corpse Parts")
+		GrantItem(receiver, "Spinal Fluid Syringe", 10)
+		SendPurchaseMsg("10x Spinal Fluid Syringes")
 		purchaser:SetAttribute("GiftTarget", nil); return Enum.ProductPurchaseDecision.PurchaseGranted
 	end
-
 
 	return Enum.ProductPurchaseDecision.NotProcessedYet
 end
@@ -254,12 +209,11 @@ MarketplaceService.PromptGamePassPurchaseFinished:Connect(function(player, passI
 	elseif passId == 1732129582 then player:SetAttribute("HasAutoTraining", true); passName = "Auto Training"
 	elseif passId == 1732900742 then player:SetAttribute("Has2xInventory", true); passName = "2x Inventory Space"
 	elseif passId == 1732842877 then player:SetAttribute("Has2xDropChance", true); passName = "2x Drop Chance"
-	elseif passId == 1733160695 then player:SetAttribute("HasStandSlot2", true); passName = "Stand Storage Slot 2"
-	elseif passId == 1732844091 then player:SetAttribute("HasStandSlot3", true); passName = "Stand Storage Slot 3"
+	elseif passId == 1733160695 then player:SetAttribute("HasTitanSlot2", true); passName = "Titan Storage Slot 2"
+	elseif passId == 1732844091 then player:SetAttribute("HasTitanSlot3", true); passName = "Titan Storage Slot 3"
 	elseif passId == 1746853452 then player:SetAttribute("HasStyleSlot2", true); passName = "Style Storage Slot 2"
 	elseif passId == 1745969849 then player:SetAttribute("HasStyleSlot3", true); passName = "Style Storage Slot 3"
-	elseif passId == 1749484465 then player:SetAttribute("HasAutoRoll", true); passName = "Auto-Roll Pass"
-	elseif passId == 1749586333 then player:SetAttribute("HasHorseNamePass", true); passName = "Custom Horse Name Pass" end
+	elseif passId == 1749484465 then player:SetAttribute("HasAutoRoll", true); passName = "Auto-Roll Pass" end
 
 	if Network:FindFirstChild("CombatUpdate") then
 		Network.CombatUpdate:FireClient(player, "SystemMessage", "<font color='#55FF55'>Successfully unlocked " .. passName .. "!</font>")
