@@ -1,312 +1,343 @@
 -- @ScriptType: ModuleScript
+-- @ScriptType: ModuleScript
 local CombatTab = {}
 
-local UIModules = script.Parent
-local StoryTab = require(UIModules:WaitForChild("StoryTab"))
-local SFXManager = require(UIModules:WaitForChild("SFXManager"))
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local Network = ReplicatedStorage:WaitForChild("Network")
+local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 
-local function applyDoubleGoldBorder(parent)
-	local parentCorner = parent:FindFirstChildOfClass("UICorner")
+local player = Players.LocalPlayer
+local MainFrame
+local LogScroll, LogText, ActionGrid
+local PlayerHPBar, PlayerHPText, PlayerNameText
+local EnemyHPBar, EnemyHPText, EnemyNameText
+local PlayerNrgBar, PlayerNrgText, PlayerNrgContainer
+local WaveLabel, LeaveBtn
 
-	local outerStroke = Instance.new("UIStroke")
-	outerStroke.Thickness = 3
-	outerStroke.Color = Color3.fromRGB(255, 210, 60)
-	outerStroke.LineJoinMode = Enum.LineJoinMode.Round
-	outerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+local isBattleActive = false
+local inputLocked = false
+local currentLog = ""
 
-	local gradOut = Instance.new("UIGradient")
-	gradOut.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(220, 160, 30)),
-		ColorSequenceKeypoint.new(0.5, Color3.fromRGB(255, 245, 150)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(220, 160, 30))
-	}
-	gradOut.Rotation = -45
-	gradOut.Parent = outerStroke
-	outerStroke.Parent = parent
+local function ShakeUI(intensity)
+	if not intensity or intensity == "None" then return end
+	local amount = (intensity == "Heavy") and 15 or 6
+	local originalPos = UDim2.new(0, 0, 0, 0)
 
-	local innerFrame = Instance.new("Frame")
-	innerFrame.Name = "InnerGoldBorder"
-	innerFrame.Size = UDim2.new(1, -6, 1, -6)
-	innerFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
-	innerFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-	innerFrame.BackgroundTransparency = 1
-	innerFrame.ZIndex = parent.ZIndex
-
-	if parentCorner then
-		local innerCorner = Instance.new("UICorner")
-		if parentCorner.CornerRadius.Scale > 0 then
-			innerCorner.CornerRadius = parentCorner.CornerRadius
-		else
-			local offset = math.max(0, parentCorner.CornerRadius.Offset - 3)
-			innerCorner.CornerRadius = UDim.new(0, offset)
+	task.spawn(function()
+		for i = 1, 10 do
+			if not MainFrame.Visible then break end
+			local xOffset = math.random(-amount, amount)
+			local yOffset = math.random(-amount, amount)
+			MainFrame.Position = originalPos + UDim2.new(0, xOffset, 0, yOffset)
+			task.wait(0.03)
 		end
-		innerCorner.Parent = innerFrame
-	end
-	innerFrame.Parent = parent
-
-	local innerStroke = Instance.new("UIStroke")
-	innerStroke.Thickness = 1
-	innerStroke.Color = Color3.fromRGB(255, 230, 100)
-	innerStroke.LineJoinMode = Enum.LineJoinMode.Round
-	innerStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-
-	local gradIn = Instance.new("UIGradient")
-	gradIn.Color = ColorSequence.new{
-		ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 240, 120)),
-		ColorSequenceKeypoint.new(1, Color3.fromRGB(200, 150, 25))
-	}
-	gradIn.Rotation = 45
-	gradIn.Parent = innerStroke
-	innerStroke.Parent = innerFrame
+		MainFrame.Position = originalPos
+	end)
 end
 
-function CombatTab.Init(parentFrame, tooltipMgr, switchTabFunc)
-	for _, child in pairs(parentFrame:GetChildren()) do
-		if child:IsA("TextLabel") and string.find(child.Text, "View") then
-			child:Destroy()
-		end
-	end
+local function CreateBar(parent, color, yPos, size, labelText)
+	local container = Instance.new("Frame", parent)
+	container.Size = size
+	container.Position = UDim2.new(0, 0, 0, yPos)
+	container.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	Instance.new("UICorner", container).CornerRadius = UDim.new(0, 4)
+	Instance.new("UIStroke", container).Color = Color3.fromRGB(80, 80, 90)
 
-	CombatTab.UpdateCombat = StoryTab.UpdateCombat
-	CombatTab.SystemMessage = StoryTab.SystemMessage
+	local fill = Instance.new("Frame", container)
+	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.BackgroundColor3 = color
+	Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
 
-	local mainPanel = Instance.new("Frame")
-	mainPanel.Name = "MainPanel"
-	mainPanel.Size = UDim2.new(0.85, 0, 0.85, 0)
-	mainPanel.Position = UDim2.new(0.5, 0, 0.48, 0)
-	mainPanel.AnchorPoint = Vector2.new(0.5, 0.5)
-	mainPanel.BackgroundColor3 = Color3.fromRGB(20, 10, 30)
-	mainPanel.BorderSizePixel = 0
-	mainPanel.ZIndex = 15
-	mainPanel.ClipsDescendants = true
-	mainPanel.Parent = parentFrame
+	local text = Instance.new("TextLabel", container)
+	text.Size = UDim2.new(1, -10, 1, 0)
+	text.Position = UDim2.new(0, 5, 0, 0)
+	text.BackgroundTransparency = 1
+	text.Font = Enum.Font.GothamBold
+	text.TextColor3 = Color3.fromRGB(255, 255, 255)
+	text.TextSize = 14
+	text.TextStrokeTransparency = 0.5
+	text.Text = labelText
 
-	local mainCorner = Instance.new("UICorner")
-	mainCorner.CornerRadius = UDim.new(0, 12)
-	mainCorner.Parent = mainPanel
+	return fill, text, container
+end
 
-	applyDoubleGoldBorder(mainPanel)
-
-	local bgPattern = Instance.new("ImageLabel")
-	bgPattern.Name = "OverlayPattern"
-	bgPattern.Image = "rbxassetid://79623015802180"
-	bgPattern.ImageColor3 = Color3.fromRGB(180, 130, 255)
-	bgPattern.ImageTransparency = 0.85
-	bgPattern.BackgroundTransparency = 1
-	bgPattern.ScaleType = Enum.ScaleType.Tile
-	bgPattern.TileSize = UDim2.new(0, 500, 0, 250) 
-	bgPattern.Size = UDim2.new(1, 0, 1, 0)
-	bgPattern.ZIndex = 16
-	bgPattern.Parent = mainPanel
-
-	local subNav = Instance.new("Frame")
-	subNav.Name = "SubNav"
-	subNav.Size = UDim2.new(1, 0, 0, 55)
-	subNav.BackgroundTransparency = 1
-	subNav.ZIndex = 20
-	subNav.Parent = mainPanel
-
-	local subNavCenter = Instance.new("Frame")
-	subNavCenter.Name = "CenterContainer"
-	subNavCenter.Size = UDim2.new(0.5, 0, 1, -10)
-	subNavCenter.Position = UDim2.new(0.5, 0, 0.5, 0)
-	subNavCenter.AnchorPoint = Vector2.new(0.5, 0.5)
-	subNavCenter.BackgroundTransparency = 1
-	subNavCenter.ZIndex = 21
-	subNavCenter.Parent = subNav
-
-	local navLayout = Instance.new("UIListLayout")
-	navLayout.FillDirection = Enum.FillDirection.Horizontal
-	navLayout.SortOrder = Enum.SortOrder.LayoutOrder
-	navLayout.Padding = UDim.new(0, 10)
-	navLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-	navLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-	navLayout.Parent = subNavCenter
-
-	local function makeNavBtn(name, text, order)
-		local btn = Instance.new("TextButton")
-		btn.Name = name
-		btn.Size = UDim2.new(0.30, 0, 0.85, 0)
-		btn.BackgroundColor3 = Color3.fromRGB(35, 25, 45)
-		btn.Text = text
-		btn.Font = Enum.Font.GothamBold
-		btn.TextColor3 = Color3.new(1, 1, 1)
-		btn.TextScaled = true
-		btn.LayoutOrder = order
-		btn.ZIndex = 22
-		btn.Parent = subNavCenter
-
-		local uic = Instance.new("UICorner")
-		uic.CornerRadius = UDim.new(0, 6)
-		uic.Parent = btn
-
-		local stroke = Instance.new("UIStroke")
-		stroke.Color = Color3.fromRGB(120, 60, 180)
-		stroke.Thickness = 1
-		stroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-		stroke.Parent = btn
-
-		local uip = Instance.new("UIPadding")
-		uip.PaddingTop = UDim.new(0, 5)
-		uip.PaddingBottom = UDim.new(0, 5)
-		uip.Parent = btn
-
-		local ts = Instance.new("UITextSizeConstraint")
-		ts.MaxTextSize = 16
-		ts.MinTextSize = 10
-		ts.Parent = btn
-
-		return btn
-	end
-
-	local storyBtn = makeNavBtn("StoryBtn", "Story", 1)
-	local dungeonBtn = makeNavBtn("DungeonBtn", "Dungeons", 2)
-	local worldBossBtn = makeNavBtn("WorldBossBtn", "World Boss", 3)
-
-	local modifierBubble = Instance.new("TextButton")
-	modifierBubble.Name = "ModifierBubble"
-	modifierBubble.Size = UDim2.new(0.35, 0, 0, 18)
-	modifierBubble.Position = UDim2.new(0.5, 0, 0, 53)
-	modifierBubble.AnchorPoint = Vector2.new(0.5, 0)
-	modifierBubble.BackgroundColor3 = Color3.fromRGB(30, 20, 50)
-	modifierBubble.Text = "ACTIVE MODIFIERS"
-	modifierBubble.Font = Enum.Font.GothamBold
-	modifierBubble.TextColor3 = Color3.fromRGB(255, 215, 50)
-	modifierBubble.TextScaled = true
-	modifierBubble.ZIndex = 30
-	modifierBubble.Parent = mainPanel
-
-	local modCorner = Instance.new("UICorner")
-	modCorner.CornerRadius = UDim.new(1, 0)
-	modCorner.Parent = modifierBubble
-
-	local modStroke = Instance.new("UIStroke")
-	modStroke.Color = Color3.fromRGB(255, 215, 50)
-	modStroke.Thickness = 1
-	modStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-	modStroke.Parent = modifierBubble
-
-	local modPad = Instance.new("UIPadding")
-	modPad.PaddingTop = UDim.new(0, 2)
-	modPad.PaddingBottom = UDim.new(0, 2)
-	modPad.PaddingLeft = UDim.new(0, 8)
-	modPad.PaddingRight = UDim.new(0, 8)
-	modPad.Parent = modifierBubble
-
-	local contentArea = Instance.new("Frame")
-	contentArea.Name = "ContentArea"
-	contentArea.Size = UDim2.new(1, 0, 1, -75)
-	contentArea.Position = UDim2.new(0, 0, 0, 75)
-	contentArea.BackgroundTransparency = 1
-	contentArea.ZIndex = 17
-	contentArea.Parent = mainPanel
-
-	local storyFrame = Instance.new("Frame")
-	storyFrame.Name = "StoryFrame"
-	storyFrame.Size = UDim2.new(1, 0, 1, 0)
-	storyFrame.BackgroundTransparency = 1
-	storyFrame.Parent = contentArea
-
-	local dungeonFrame = Instance.new("Frame")
-	dungeonFrame.Name = "DungeonFrame"
-	dungeonFrame.Size = UDim2.new(1, 0, 1, 0)
-	dungeonFrame.BackgroundTransparency = 1
-	dungeonFrame.Visible = false
-	dungeonFrame.Parent = contentArea
-
-	local worldBossFrame = Instance.new("Frame")
-	worldBossFrame.Name = "WorldBossFrame"
-	worldBossFrame.Size = UDim2.new(1, 0, 1, 0)
-	worldBossFrame.BackgroundTransparency = 1
-	worldBossFrame.Visible = false
-	worldBossFrame.Parent = contentArea
-
-	local function ForceSubTabFocus(target)
-		if switchTabFunc then switchTabFunc("Singleplayer") end
-		storyFrame.Visible = (target == "Story")
-		dungeonFrame.Visible = (target == "Dungeon")
-		worldBossFrame.Visible = (target == "WorldBoss")
-
-		storyBtn.BackgroundColor3 = (target == "Story") and Color3.fromRGB(70, 30, 100) or Color3.fromRGB(35, 25, 45)
-		storyBtn.TextColor3 = (target == "Story") and Color3.fromRGB(255, 215, 0) or Color3.new(1,1,1)
-		storyBtn:FindFirstChild("UIStroke").Color = (target == "Story") and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(120, 60, 180)
-
-		dungeonBtn.BackgroundColor3 = (target == "Dungeon") and Color3.fromRGB(70, 30, 100) or Color3.fromRGB(35, 25, 45)
-		dungeonBtn.TextColor3 = (target == "Dungeon") and Color3.fromRGB(255, 215, 0) or Color3.new(1,1,1)
-		dungeonBtn:FindFirstChild("UIStroke").Color = (target == "Dungeon") and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(120, 60, 180)
-
-		worldBossBtn.BackgroundColor3 = (target == "WorldBoss") and Color3.fromRGB(140, 40, 40) or Color3.fromRGB(45, 25, 25)
-		worldBossBtn.TextColor3 = (target == "WorldBoss") and Color3.fromRGB(255, 215, 0) or Color3.new(1,1,1)
-		worldBossBtn:FindFirstChild("UIStroke").Color = (target == "WorldBoss") and Color3.fromRGB(255, 215, 0) or Color3.fromRGB(180, 60, 60)
-	end
-
-	storyBtn.MouseButton1Click:Connect(function() SFXManager.Play("Click"); ForceSubTabFocus("Story") end)
-	dungeonBtn.MouseButton1Click:Connect(function() SFXManager.Play("Click"); ForceSubTabFocus("Dungeon") end)
-	worldBossBtn.MouseButton1Click:Connect(function() SFXManager.Play("Click"); ForceSubTabFocus("WorldBoss") end)
-
-	StoryTab.Init(storyFrame, tooltipMgr, function() ForceSubTabFocus("Story") end, modifierBubble)
-
-	task.spawn(function()
-		local dMod = UIModules:FindFirstChild("DungeonTab")
-		if dMod then
-			local successD, DungeonTab = pcall(require, dMod)
-			if successD and type(DungeonTab) == "table" and DungeonTab.Init then
-				DungeonTab.Init(dungeonFrame, tooltipMgr, function() ForceSubTabFocus("Dungeon") end)
-				CombatTab.UpdateDungeon = DungeonTab.UpdateDungeon
-			end
-		end
-	end)
-
-	task.spawn(function()
-		local wMod = UIModules:FindFirstChild("WorldBossTab")
-		if wMod then
-			local successW, WorldBossTab = pcall(require, wMod)
-			if successW and type(WorldBossTab) == "table" and WorldBossTab.Init then
-				WorldBossTab.Init(worldBossFrame, tooltipMgr, function() ForceSubTabFocus("WorldBoss") end)
-				CombatTab.UpdateWorldBoss = WorldBossTab.UpdateWorldBoss
-			end
-		end
-	end)
-
-	ForceSubTabFocus("Story")
-
-	local camera = workspace.CurrentCamera
-	local resizeConn
-	resizeConn = camera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
-		if not parentFrame.Parent then
-			resizeConn:Disconnect()
-			return
-		end
-		local vp = camera.ViewportSize
-		if vp.X >= 1050 then
-			mainPanel.Size = UDim2.new(0.80, 0, 0.88, 0)
-			mainPanel.Position = UDim2.new(0.5, 0, 0.48, 0)
-			subNavCenter.Size = UDim2.new(0.5, 0, 1, -10)
-		elseif vp.X >= 600 and vp.X < 1050 then
-			mainPanel.Size = UDim2.new(0.92, 0, 0.82, 0)
-			mainPanel.Position = UDim2.new(0.5, 0, 0.50, 0)
-			subNavCenter.Size = UDim2.new(0.65, 0, 1, -10)
-		else
-			mainPanel.Size = UDim2.new(0.96, 0, 0.82, 0)
-			mainPanel.Position = UDim2.new(0.5, 0, 0.50, 0)
-			subNavCenter.Size = UDim2.new(0.75, 0, 1, -10)
-		end
-	end)
-
-	local vpInit = camera.ViewportSize
-	if vpInit.X >= 1050 then
-		mainPanel.Size = UDim2.new(0.80, 0, 0.88, 0)
-		mainPanel.Position = UDim2.new(0.5, 0, 0.48, 0)
-		subNavCenter.Size = UDim2.new(0.5, 0, 1, -10)
-	elseif vpInit.X >= 600 and vpInit.X < 1050 then
-		mainPanel.Size = UDim2.new(0.92, 0, 0.82, 0)
-		mainPanel.Position = UDim2.new(0.5, 0, 0.50, 0)
-		subNavCenter.Size = UDim2.new(0.65, 0, 1, -10)
+local function AddLogMessage(msgText, append)
+	if not msgText or msgText == "" then return end
+	if append then
+		currentLog = currentLog .. "\n" .. msgText
 	else
-		mainPanel.Size = UDim2.new(0.96, 0, 0.82, 0)
-		mainPanel.Position = UDim2.new(0.5, 0, 0.50, 0)
-		subNavCenter.Size = UDim2.new(0.75, 0, 1, -10)
+		currentLog = msgText
 	end
+
+	LogText.Text = currentLog
+
+	task.defer(function()
+		LogScroll.CanvasPosition = Vector2.new(0, LogText.AbsoluteSize.Y + 99999)
+	end)
+end
+
+function CombatTab.Init(parentFrame)
+	MainFrame = Instance.new("Frame", parentFrame.Parent)
+	MainFrame.Name = "CombatFrame"
+	MainFrame.Size = UDim2.new(1, 0, 1, 0)
+	MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 18)
+	MainFrame.Visible = false
+	MainFrame.ZIndex = 200
+
+	WaveLabel = Instance.new("TextLabel", MainFrame)
+	WaveLabel.Size = UDim2.new(1, 0, 0, 40)
+	WaveLabel.Position = UDim2.new(0, 0, 0.02, 0)
+	WaveLabel.BackgroundTransparency = 1
+	WaveLabel.Font = Enum.Font.GothamBlack
+	WaveLabel.TextColor3 = Color3.fromRGB(255, 215, 100)
+	WaveLabel.TextSize = 22
+	WaveLabel.Text = "WAVE 1/1"
+
+	local CenterArea = Instance.new("Frame", MainFrame)
+	CenterArea.Size = UDim2.new(0.9, 0, 0.85, 0)
+	CenterArea.Position = UDim2.new(0.05, 0, 0.1, 0)
+	CenterArea.BackgroundTransparency = 1
+
+	-- [[ PLAYER STATS ]]
+	local PlayerPanel = Instance.new("Frame", CenterArea)
+	PlayerPanel.Size = UDim2.new(0.4, 0, 0.2, 0)
+	PlayerPanel.Position = UDim2.new(0, 0, 0, 0)
+	PlayerPanel.BackgroundTransparency = 1
+
+	PlayerNameText = Instance.new("TextLabel", PlayerPanel)
+	PlayerNameText.Size = UDim2.new(1, 0, 0, 25); PlayerNameText.BackgroundTransparency = 1; PlayerNameText.Font = Enum.Font.GothamBlack; PlayerNameText.TextColor3 = Color3.fromRGB(255, 255, 255); PlayerNameText.TextSize = 18; PlayerNameText.TextXAlignment = Enum.TextXAlignment.Left
+	PlayerNameText.Text = player.Name
+
+	PlayerHPBar, PlayerHPText = CreateBar(PlayerPanel, Color3.fromRGB(60, 180, 60), 30, UDim2.new(1, 0, 0, 25), "HP: 100/100")
+	PlayerNrgBar, PlayerNrgText, PlayerNrgContainer = CreateBar(PlayerPanel, Color3.fromRGB(255, 120, 40), 60, UDim2.new(0.8, 0, 0, 18), "TITAN HEAT: 0/100")
+
+	-- [[ ENEMY STATS ]]
+	local EnemyPanel = Instance.new("Frame", CenterArea)
+	EnemyPanel.Size = UDim2.new(0.4, 0, 0.2, 0)
+	EnemyPanel.Position = UDim2.new(0.6, 0, 0, 0)
+	EnemyPanel.BackgroundTransparency = 1
+
+	EnemyNameText = Instance.new("TextLabel", EnemyPanel)
+	EnemyNameText.Size = UDim2.new(1, 0, 0, 25); EnemyNameText.BackgroundTransparency = 1; EnemyNameText.Font = Enum.Font.GothamBlack; EnemyNameText.TextColor3 = Color3.fromRGB(255, 80, 80); EnemyNameText.TextSize = 18; EnemyNameText.TextXAlignment = Enum.TextXAlignment.Right
+	EnemyNameText.Text = "Enemy Target"
+
+	EnemyHPBar, EnemyHPText = CreateBar(EnemyPanel, Color3.fromRGB(200, 60, 60), 30, UDim2.new(1, 0, 0, 25), "HP: 100/100")
+
+	-- [[ COMBAT FEED ]]
+	local FeedBox = Instance.new("Frame", CenterArea)
+	FeedBox.Size = UDim2.new(1, 0, 0.45, 0)
+	FeedBox.Position = UDim2.new(0, 0, 0.25, 0)
+	FeedBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	Instance.new("UICorner", FeedBox).CornerRadius = UDim.new(0, 8)
+	Instance.new("UIStroke", FeedBox).Color = Color3.fromRGB(120, 100, 60)
+
+	LogScroll = Instance.new("ScrollingFrame", FeedBox)
+	LogScroll.Size = UDim2.new(1, -20, 1, -20)
+	LogScroll.Position = UDim2.new(0, 10, 0, 10)
+	LogScroll.BackgroundTransparency = 1
+	LogScroll.BorderSizePixel = 0
+	LogScroll.ScrollBarThickness = 6
+	LogScroll.ScrollBarImageColor3 = Color3.fromRGB(120, 100, 60)
+	LogScroll.AutomaticCanvasSize = Enum.AutomaticSize.Y 
+
+	-- Centralized Single TextLabel (Guarantees Text Shows)
+	LogText = Instance.new("TextLabel", LogScroll)
+	LogText.Size = UDim2.new(1, -5, 0, 0)
+	LogText.AutomaticSize = Enum.AutomaticSize.Y
+	LogText.BackgroundTransparency = 1
+	LogText.Font = Enum.Font.GothamMedium
+	LogText.TextColor3 = Color3.fromRGB(230, 230, 230)
+	LogText.TextSize = 15
+	LogText.TextXAlignment = Enum.TextXAlignment.Left
+	LogText.TextYAlignment = Enum.TextYAlignment.Top
+	LogText.TextWrapped = true
+	LogText.RichText = true
+	LogText.Text = ""
+
+	-- [[ ACTION GRID ]]
+	ActionGrid = Instance.new("Frame", CenterArea)
+	ActionGrid.Size = UDim2.new(1, 0, 0.25, 0)
+	ActionGrid.Position = UDim2.new(0, 0, 0.75, 0)
+	ActionGrid.BackgroundTransparency = 1
+
+	local gridLayout = Instance.new("UIGridLayout", ActionGrid)
+	gridLayout.CellSize = UDim2.new(0.31, 0, 0, 45) -- Fits 3 columns nicely
+	gridLayout.CellPadding = UDim2.new(0.02, 0, 0, 10)
+	gridLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+	-- [[ LEAVE BATTLE BUTTON ]]
+	LeaveBtn = Instance.new("TextButton", MainFrame)
+	LeaveBtn.Size = UDim2.new(0.3, 0, 0, 50)
+	LeaveBtn.Position = UDim2.new(0.35, 0, 0.9, 0)
+	LeaveBtn.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
+	LeaveBtn.Font = Enum.Font.GothamBlack; LeaveBtn.TextColor3 = Color3.fromRGB(25, 25, 30); LeaveBtn.TextSize = 18; LeaveBtn.Text = "RETURN TO BASE"
+	LeaveBtn.Visible = false
+	Instance.new("UICorner", LeaveBtn).CornerRadius = UDim.new(0, 6)
+
+	LeaveBtn.MouseButton1Click:Connect(function()
+		MainFrame.Visible = false
+		isBattleActive = false
+		parentFrame.Parent.TopBar.Visible = true
+		parentFrame.Parent.NavBar.Visible = true
+	end)
+
+	-- [[ DYNAMIC SKILL POPULATION & LOCKING ]]
+	local function LockGrid()
+		inputLocked = true
+		for _, btn in ipairs(ActionGrid:GetChildren()) do
+			if btn:IsA("TextButton") then
+				btn.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+				btn.UIStroke.Color = Color3.fromRGB(30, 30, 35)
+				btn.TextColor3 = Color3.fromRGB(100, 100, 100)
+			end
+		end
+	end
+
+	local function UpdateActionGrid(battleState)
+		inputLocked = false
+		for _, child in ipairs(ActionGrid:GetChildren()) do
+			if child:IsA("TextButton") then child:Destroy() end
+		end
+
+		local p = battleState.Player
+		local pStyle = p.Style or "None"
+		local pTitan = p.Titan or "None"
+
+		local function CreateBtn(sName, color, order)
+			local sData = SkillData.Skills[sName]
+			if not sData then return end
+
+			local cd = p.Cooldowns and p.Cooldowns[sName] or 0
+			local isReady = (cd == 0)
+
+			local btn = Instance.new("TextButton", ActionGrid)
+			btn.BackgroundColor3 = isReady and (color or Color3.fromRGB(30, 30, 35)) or Color3.fromRGB(20, 20, 25)
+			btn.Font = Enum.Font.GothamBold
+			btn.TextColor3 = isReady and Color3.fromRGB(255, 255, 255) or Color3.fromRGB(120, 120, 120)
+			btn.TextSize = 15
+			btn.LayoutOrder = order or 10
+			Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+			Instance.new("UIStroke", btn).Color = isReady and Color3.fromRGB(120, 100, 60) or Color3.fromRGB(50, 50, 55)
+
+			local cdStr = isReady and "READY" or "CD: " .. cd
+			btn.Text = sName:upper() .. "\n<font size='11' color='" .. (isReady and "#AAAAAA" or "#FF5555") .. "'>[" .. cdStr .. "]</font>"
+			btn.RichText = true
+
+			btn.MouseButton1Click:Connect(function()
+				if isBattleActive and not inputLocked and isReady then
+					LockGrid() 
+					Network:WaitForChild("CombatAction"):FireServer("Attack", {SkillName = sName})
+				end
+			end)
+		end
+
+		CreateBtn("Basic Slash", Color3.fromRGB(120, 40, 40), 1)
+		CreateBtn("Maneuver", Color3.fromRGB(40, 80, 140), 2)
+		CreateBtn("Recover", Color3.fromRGB(40, 140, 80), 3)
+		CreateBtn("Retreat", Color3.fromRGB(60, 60, 70), 4)
+
+		local orderIndex = 5
+		for sName, sData in pairs(SkillData.Skills) do
+			if sName == "Basic Slash" or sName == "Maneuver" or sName == "Recover" or sName == "Retreat" or sName == "Block" or sName == "Regroup" then continue end
+			local req = sData.Requirement
+			if req == pStyle or req == pTitan or (req == "AnyTitan" and pTitan ~= "None") then
+				CreateBtn(sName, Color3.fromRGB(45, 40, 60), sData.Order or orderIndex)
+				orderIndex += 1
+			end
+		end
+	end
+
+	-- [[ EVENT LISTENERS ]]
+	local function SyncBars(battleState)
+		local p = battleState.Player
+		local e = battleState.Enemy
+		local tInfo = TweenInfo.new(0.4, Enum.EasingStyle.Cubic, Enum.EasingDirection.Out)
+
+		TweenService:Create(PlayerHPBar, tInfo, {Size = UDim2.new(math.clamp(p.HP / p.MaxHP, 0, 1), 0, 1, 0)}):Play()
+		PlayerHPText.Text = "HP: " .. math.floor(p.HP) .. " / " .. math.floor(p.MaxHP)
+
+		-- Only show Titan Heat if they are a shifter
+		if p.Titan and p.Titan ~= "None" then
+			PlayerNrgContainer.Visible = true
+			local pNrg = p.TitanEnergy or p.TitanHeat or 0
+			local pMaxNrg = 100
+			TweenService:Create(PlayerNrgBar, tInfo, {Size = UDim2.new(math.clamp(pNrg / pMaxNrg, 0, 1), 0, 1, 0)}):Play()
+			PlayerNrgText.Text = "TITAN HEAT: " .. math.floor(pNrg) .. " / " .. math.floor(pMaxNrg)
+		else
+			PlayerNrgContainer.Visible = false
+		end
+
+		EnemyNameText.Text = e.Name:upper()
+		TweenService:Create(EnemyHPBar, tInfo, {Size = UDim2.new(math.clamp(e.HP / e.MaxHP, 0, 1), 0, 1, 0)}):Play()
+		EnemyHPText.Text = "HP: " .. math.floor(e.HP) .. " / " .. math.floor(e.MaxHP)
+
+		if battleState.Context.IsStoryMission then
+			WaveLabel.Text = "WAVE " .. battleState.Context.CurrentWave .. " / " .. battleState.Context.TotalWaves
+		else
+			WaveLabel.Text = "RANDOM ENCOUNTER"
+		end
+	end
+
+	Network:WaitForChild("CombatUpdate").OnClientEvent:Connect(function(action, data)
+		if action == "Start" then
+			currentLog = ""
+			LogText.Text = ""
+			MainFrame.Visible = true
+			parentFrame.Parent.TopBar.Visible = false
+			parentFrame.Parent.NavBar.Visible = false
+			LeaveBtn.Visible = false
+			isBattleActive = true
+
+			SyncBars(data.Battle)
+			UpdateActionGrid(data.Battle)
+			AddLogMessage(data.LogMsg, false)
+
+		elseif action == "TurnStrike" then
+			ShakeUI(data.ShakeType)
+			SyncBars(data.Battle)
+			AddLogMessage(data.LogMsg, true)
+
+		elseif action == "Update" then
+			SyncBars(data.Battle)
+			UpdateActionGrid(data.Battle)
+
+		elseif action == "WaveComplete" then
+			SyncBars(data.Battle)
+			AddLogMessage(data.LogMsg, true)
+			AddLogMessage("<font color='#55FF55'>Rewards: +" .. data.XP .. " XP | +" .. data.Yen .. " Dews</font>", true)
+			UpdateActionGrid(data.Battle)
+
+		elseif action == "Victory" then
+			SyncBars(data.Battle)
+			isBattleActive = false
+			LockGrid()
+			LeaveBtn.Visible = true
+			LeaveBtn.Text = "VICTORY - RETURN"
+			LeaveBtn.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+
+			AddLogMessage("\n<b><font color='#55FF55'>ENEMY DEFEATED!</font></b>", true)
+			AddLogMessage("<font color='#55FF55'>Rewards: +" .. data.XP .. " XP | +" .. data.Yen .. " Dews</font>", true)
+
+		elseif action == "Defeat" then
+			SyncBars(data.Battle)
+			isBattleActive = false
+			LockGrid()
+			LeaveBtn.Visible = true
+			LeaveBtn.Text = "DEFEAT - RETREAT"
+			LeaveBtn.BackgroundColor3 = Color3.fromRGB(200, 80, 80)
+
+			AddLogMessage("\n<b><font color='#FF5555'>YOU WERE SLAUGHTERED.</font></b>", true)
+
+		elseif action == "Fled" then
+			isBattleActive = false
+			LockGrid()
+			LeaveBtn.Visible = true
+			LeaveBtn.Text = "COWARD - RETURN"
+			LeaveBtn.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+		end
+	end)
 end
 
 return CombatTab
