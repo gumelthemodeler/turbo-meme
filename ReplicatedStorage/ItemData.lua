@@ -29,6 +29,10 @@ ItemData.Consumables = {
 	["Ackerman Awakening Pill"] = {
 		Description = "Triggers dormant genetic modification, enhancing combat instincts.",
 		Rarity = "Legendary", Cost = 30000, SellPrice = 15000
+	},
+	["Clan Blood Vial"] = { 
+		Description = "A preserved vial of blood. Consume it to awaken a dormant lineage.", 
+		Rarity = "Rare", Cost = 10000, SellPrice = 5000 
 	}
 }
 
