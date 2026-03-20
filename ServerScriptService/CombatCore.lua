@@ -1,13 +1,4 @@
 -- @ScriptType: ModuleScript
-You are completely right, my apologies. I left the JoJo ultimate effects (`ReturnToZero`, `TimeErase`, `TimeStop`, `TimeRewind`, etc.) in the utility block of `ExecuteStrike`, as well as some JoJo-esque traits like "Overheaven" and "Requiem". 
-
-	Let's completely purge those. In Attack on Titan, there is no time-stopping or reality-rewriting. Combat is grounded, brutal, and physical. 
-
-Here is the **fully purged and AoT-purified `CombatCore.lua`**. I removed all the reality-bending effects and updated the random weapon/titan traits to sound grounded in the AoT universe (e.g., "Overheaven" is now "Awakened", "Vampiric" is "Bloodthirsty", "Electric" is "Concussive").
-
-	### Replace `ServerScriptService/CombatCore.lua`:
-
-	```lua
 -- @ScriptType: ModuleScript
 local CombatCore = {}
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -212,8 +203,7 @@ function CombatCore.ApplyStatusDamage(combatant, uniModStr, CombatUpdate, player
 		if combatant.HP < 1 then return end
 
 		if combatant.IsPlayer and not CombatCore.HasModifier(uniModStr, "Paths Connection") then
-			combatant.Stamina = math.min(combatant.MaxStamina, combatant.Stamina + 5)
-			combatant.TitanEnergy = math.min(combatant.MaxTitanEnergy, (combatant.TitanEnergy or 0) + 5)
+			combatant.TitanEnergy = math.min(100, (combatant.TitanEnergy or 0) + 5)
 		end
 		return "Frozen"
 	end
@@ -240,28 +230,12 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		bName = fDefName
 	end
 
-	if skillName == "Titan Transformation" then
-		attacker.IsTransformed = true
-		attacker.TitanEnergy = 0
-		attacker.TitanHeat = 0
-		attacker.HP = math.min(attacker.MaxHP, attacker.HP + (attacker.MaxHP * 0.25))
-		return "", false, "Heavy" 
-	end
-
 	if skill.Effect ~= "Flee" then
 		if attacker.IsPlayer then
-			if attacker.IsTransformed then
-				local heatGen = skill.HeatCost or 20
-				if attacker.Clan == "Yeager" and attacker.Titan == "Attack Titan" then heatGen *= 0.7 end
-				attacker.TitanHeat = (attacker.TitanHeat or 0) + heatGen
-			else
-				local stamCost = skill.StaminaCost or 0
-				local nrgCost = skill.EnergyCost or 0
-				if CombatCore.HasModifier(uniModStr, "ODM Surge") then stamCost *= 1.5; nrgCost *= 1.5 end
-				if CombatCore.HasModifier(uniModStr, "Paths Connection") then stamCost *= 0.5; nrgCost *= 0.5 end
-				if attacker.Stamina then attacker.Stamina = math.max(0, attacker.Stamina - stamCost) end
-				if attacker.TitanEnergy then attacker.TitanEnergy = math.max(0, attacker.TitanEnergy - nrgCost) end
-			end
+			local nrgCost = skill.EnergyCost or 0
+			if CombatCore.HasModifier(uniModStr, "ODM Surge") then nrgCost *= 1.5 end
+			if CombatCore.HasModifier(uniModStr, "Paths Connection") then nrgCost *= 0.5 end
+			if attacker.TitanEnergy then attacker.TitanEnergy = math.max(0, attacker.TitanEnergy - nrgCost) end
 		end
 		if attacker.Cooldowns then attacker.Cooldowns[skillName] = skill.Cooldown or 0 end
 	end
@@ -290,12 +264,12 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 	end
 
 	-- Utility & Healing Effects
-	if skill.Effect == "Block" then
-		b.BlockTurns = 2; return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! " .. bName .. " braces for impact, reducing incoming damage.", false, "None"
-	elseif skill.Effect == "Rest" then
-		if b.MaxStamina then b.Stamina = math.min(b.MaxStamina, (b.Stamina or 0) + 20) end
-		if b.MaxTitanEnergy and not b.IsTransformed then b.TitanEnergy = math.min(b.MaxTitanEnergy, (b.TitanEnergy or 0) + 20) end
-		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. bName .. " regroups, recovering Stamina and Energy.</font>", false, "None"
+	if skill.Effect == "Block" or skillName == "Maneuver" then
+		b.BlockTurns = 2; return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! " .. bName .. " maneuvers defensively, reducing incoming damage.", false, "None"
+	elseif skill.Effect == "Rest" or skillName == "Recover" then
+		local healAmount = (b.MaxHP or 100) * 0.12
+		b.HP = math.min(b.MaxHP or b.HP, b.HP + healAmount)
+		return msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. bName .. " regroups, recovering " .. math.floor(healAmount) .. " HP.</font>", false, "None"
 	elseif skill.Effect == "Heal" then
 		local healAmount = (b.MaxHP or 100) * (skill.HealPercent or 0.25)
 		b.HP = math.min(b.MaxHP or b.HP, b.HP + healAmount)
@@ -322,11 +296,7 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 	local isUnavoidable = (skillName == "Titan Roar" or skillName == "Coordinate Command")
 
 	local msg = ""
-	if skillName == "Titan Transformation" then
-		msg = "<b><font color='#FFD700'>" .. fLogName .. " triggered a lightning strike and ASCENDED into their Titan form!</font></b>"
-	else
-		msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>" .. (hitsToDo == 1 and "" or "!")
-	end
+	msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>" .. (hitsToDo == 1 and "" or "!")
 
 	local hitLogs = {}
 	local didHitAtAll = false
@@ -335,7 +305,6 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 
 	for i = 1, hitsToDo do
 		if t.HP < 1 and i > 1 then break end 
-		if skillName == "Titan Transformation" then break end
 
 		local atkSpdBuff = (((attacker.Statuses and attacker.Statuses.Buff_Speed or 0) > 0) and 1.5 or 1.0) * (((attacker.Statuses and attacker.Statuses.Debuff_Speed or 0) > 0) and 0.5 or 1.0)
 		local defSpdBuff = (((t.Statuses and t.Statuses.Buff_Speed or 0) > 0) and 1.5 or 1.0) * (((t.Statuses and t.Statuses.Debuff_Speed or 0) > 0) and 0.5 or 1.0)
@@ -389,19 +358,12 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		local mult = skill.Mult * (isCrit and critMult or 1.0)
 		if attacker.Trait == "Relentless" then mult *= 1.15 end
 
-		-- AoT Custom Traits (Replacing Overheaven/Requiem)
 		if attacker.Trait == "Awakened" then mult *= 1.30 end
 		if attacker.Trait == "Transcendent" then mult *= 1.50 end
 
 		local isBlocking = (t.BlockTurns or 0) > 0
 		local damage = CombatCore.CalculateDamage(attacker, t, mult, isBlocking, uniModStr)
 		local survivalTriggered = CombatCore.TakeDamageWithWillpower(t, damage)
-
-		if attacker.IsPlayer and not attacker.IsTransformed then
-			local energyGen = math.max(1, math.floor(damage * 0.05))
-			if attacker.Clan == "Arlert" then energyGen = math.floor(energyGen * 1.5) end
-			attacker.TitanEnergy = math.min(attacker.MaxTitanEnergy, (attacker.TitanEnergy or 0) + energyGen)
-		end
 
 		if isCrit or survivalTriggered then overallShake = "Heavy" elseif isBlocking and overallShake == "None" then overallShake = "Light" elseif overallShake == "None" then overallShake = "Normal" end
 
@@ -418,14 +380,12 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 
 		local postMsg = ""
 
-		-- Replaced Vampiric with Bloodthirsty
 		if attacker.Trait == "Bloodthirsty" and damage > 0 then
 			local vHeal = damage * 0.20; attacker.HP = math.min(attacker.MaxHP, attacker.HP + vHeal)
 			postMsg = postMsg .. " <font color='#AA00AA'>(Healed " .. math.floor(vHeal) .. ")</font>"
 		end
 
 		if damage > 0 and not isBlocking then
-			-- Replaced JoJo elemental traits with AoT grounded traits
 			if attacker.Trait == "Concussive" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Stun", 1, t, "#FFFF55", "Concussed")
 			elseif attacker.Trait == "Crystalline" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Freeze", 1, t, "#00FFFF", "Crystallized")
 			elseif attacker.Trait == "Incendiary" and math.random(1, 100) <= 10 then postMsg = postMsg .. ApplyCC("Burn", 3, t, "#FF5500", "Scorched")
@@ -461,18 +421,9 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, uniModStr, logN
 		if hitsToDo == 1 then msg = hitMsg .. postMsg else table.insert(hitLogs, hitMsg .. postMsg) end
 	end
 
-	if hitsToDo > 1 and skillName ~= "Titan Transformation" then
+	if hitsToDo > 1 then
 		if not didHitAtAll then msg = msgPrefix .. fLogName .. " used <b>" .. skillName .. "</b>, but " .. tName .. " dodged completely!"
 		else msg = msg .. "\n" .. table.concat(hitLogs, "\n") end
-	end
-
-	if attacker.IsPlayer and attacker.IsTransformed and (attacker.TitanHeat or 0) >= 100 then
-		attacker.IsTransformed = false
-		attacker.TitanEnergy = 0
-		attacker.TitanHeat = 0
-		attacker.Statuses.Debuff_Speed = 2
-		attacker.Statuses.Debuff_Defense = 2
-		msg = msg .. "\n<b><font color='#FF5555'>BURNOUT! " .. fLogName .. "'s Titan body evaporated! Speed and Defense crippled for 2 turns!</font></b>"
 	end
 
 	return msg, didHitAtAll, overallShake
