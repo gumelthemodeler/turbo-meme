@@ -7,7 +7,12 @@ local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local SkillData = require(ReplicatedStorage:WaitForChild("SkillData"))
 local CombatCore = require(game:GetService("ServerScriptService"):WaitForChild("CombatCore"))
 
-local WorldBossUpdate = Network:WaitForChild("WorldBossUpdate")
+local WorldBossUpdate = Network:FindFirstChild("WorldBossUpdate")
+if not WorldBossUpdate then
+	WorldBossUpdate = Instance.new("RemoteEvent")
+	WorldBossUpdate.Name = "WorldBossUpdate"
+	WorldBossUpdate.Parent = Network
+end
 local WorldBossAction = Network:WaitForChild("WorldBossAction")
 local AdminForceSpawn = Network:FindFirstChild("AdminForceSpawnWB") or Instance.new("BindableEvent", Network)
 AdminForceSpawn.Name = "AdminForceSpawnWB"
