@@ -115,7 +115,11 @@ function CombatCore.ExecuteStrike(attacker, defender, skillName, logName, defNam
 		local healAmount = (attacker.MaxHP or 100) * 0.30
 		attacker.HP = math.min(attacker.MaxHP, attacker.HP + healAmount)
 		attacker.LastSkill = skillName
-		return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. fLogName .. " regroups, recovering HP and Gas.</font>", false, "None"
+
+		-- THE FIX: "You regroup" vs "The Titan regroups"
+		local regroupWord = attacker.IsPlayer and "regroup" or "regroups"
+		return fLogName .. " used <b>" .. skillName .. "</b>! <font color='#55FF55'>" .. fLogName .. " " .. regroupWord .. ", recovering HP and Gas.</font>", false, "None"
+
 	elseif skill.Effect == "Transform" then
 		if not attacker.Statuses then attacker.Statuses = {} end
 		attacker.Statuses["Transformed"] = 999
