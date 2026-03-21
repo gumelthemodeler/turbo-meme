@@ -3,35 +3,56 @@
 local SkillData = {}
 
 SkillData.Skills = {
-	-- // BASE MOVES //
-	["Basic Slash"] = { Requirement = "None", Type = "Basic", Mult = 1.0, EnergyCost = 0, Order = 1, Description = "A standard strike to the target." },
-	["Maneuver"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, Effect = "Block", Cooldown = 2, Order = 2, Description = "Evade incoming damage, reducing it by 50% for 2 turns." },
-	["Recover"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, Effect = "Rest", Cooldown = 3, Order = 3, Description = "Skip your turn to recover health." },
-	["Retreat"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, Effect = "Flee", Order = 4, Description = "Fire a smoke signal and escape." },
+	["Basic Slash"] = { Requirement = "None", Type = "Basic", Mult = 1.0, EnergyCost = 0, GasCost = 0, Order = 1, SFX = "LightSlash", VFX = "SlashMark", Description = "A standard strike to the target." },
+	["Maneuver"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, GasCost = 15, Effect = "Block", Cooldown = 2, Order = 2, SFX = "Dash", VFX = "BlockMark", Description = "Burn gas to rapidly dodge. Grants a 100% chance to evade the next attack." },
+	["Recover"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, GasCost = 0, Effect = "Rest", Cooldown = 3, Order = 3, SFX = "Heal", VFX = "HealMark", Description = "Skip your turn to recover HP and replenish Gas." },
+	["Retreat"] = { Requirement = "None", Type = "Basic", Mult = 0, EnergyCost = 0, GasCost = 50, Effect = "Flee", Order = 4, SFX = "Flee", VFX = "BlockMark", Description = "Fire a smoke signal and escape." },
 
-	-- // UNARMED / CADET BRAWLING //
-	["Disarm"] = { Requirement = "Unarmed", Type = "Style", Mult = 1.2, Effect = "Debuff_Strength", Duration = 2, Cooldown = 4, Order = 6, Description = "Grapple the enemy, reducing their Strength for 2 turns." },
-	["Leg Sweep"] = { Requirement = "Unarmed", Type = "Style", Mult = 1.3, Effect = "Stun", Duration = 1, Cooldown = 5, Order = 7, Description = "Knock the enemy off balance, stunning them briefly." },
+	["Transform"] = { Requirement = "AnyTitan", Type = "Transform", Mult = 0, EnergyCost = 0, GasCost = 0, Effect = "Transform", Cooldown = 10, Order = 5, SFX = "Transform", VFX = "ExplosionMark", Description = "Bite your hand and trigger a Titan transformation." },
+	["Eject"] = { Requirement = "Transformed", Type = "Transform", Mult = 0, EnergyCost = 0, GasCost = 0, Effect = "Eject", Cooldown = 0, Order = 1, SFX = "Dash", VFX = "SlashMark", Description = "Cut yourself out of the nape, returning to human form." },
+	["Titan Recover"] = { Requirement = "Transformed", Type = "Basic", Mult = 0, EnergyCost = 0, GasCost = 0, Effect = "TitanRest", Cooldown = 3, Order = 2, SFX = "Steam", VFX = "HealMark", Description = "Channel your Titan regeneration to massively recover HP." },
 
-	-- // ULTRAHARD STEEL BLADES (ODM Gear) //
-	["Spinning Slash"] = { Requirement = "Ultrahard Steel Blades", Type = "Style", Mult = 0.5, Hits = 3, Order = 6, Description = "Use gas to rapidly spin and slash the target 3 times." },
-	["Nape Strike"] = { Requirement = "Ultrahard Steel Blades", Type = "Style", Mult = 2.2, Effect = "Bleed", Duration = 3, Cooldown = 4, Order = 7, Description = "A precise, lethal strike to the vital point. Causes Bleed." },
+	["Titan Punch"] = { Requirement = "Transformed", Type = "Basic", Mult = 1.2, EnergyCost = 0, GasCost = 0, Cooldown = 0, Order = 3, SFX = "Punch", VFX = "ExplosionMark", Description = "A heavy punch that consumes no steam." },
+	["Titan Kick"] = { Requirement = "Transformed", Type = "Basic", Mult = 1.5, EnergyCost = 0, GasCost = 0, Cooldown = 2, Order = 4, SFX = "Kick", VFX = "ExplosionMark", Description = "A sweeping kick that knocks the enemy back." },
 
-	-- // THUNDER SPEARS //
-	["Spear Volley"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 2.5, Effect = "Burn", Duration = 2, Cooldown = 4, Order = 6, Description = "Fire a highly explosive payload that burns the enemy." },
-	["Armor Piercer"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 1.8, Effect = "Debuff_Defense", Duration = 4, Cooldown = 5, Order = 7, Description = "A shaped charge that shreds the enemy's Defense for 4 turns." },
-	["Reckless Barrage"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 0.8, Hits = 4, Cooldown = 7, Order = 8, Description = "Unleash all your spears at once." },
+	["Spinning Slash"] = { Requirement = "ODM", Type = "Style", Mult = 0.5, Hits = 3, GasCost = 20, Order = 6, ComboReq = "Maneuver", ComboMult = 1.3, SFX = "SpinSlash", VFX = "SlashMark", Description = "Burn gas to rapidly spin and slash the target 3 times." },
+	["Nape Strike"] = { Requirement = "ODM", Type = "Style", Mult = 2.2, Effect = "Bleed", Duration = 3, GasCost = 25, Cooldown = 4, Order = 7, ComboReq = "Spinning Slash", ComboMult = 1.5, SFX = "HeavySlash", VFX = "SlashMark", Description = "A precise, lethal strike to the vital point. Causes Bleed." },
 
-	-- // TITAN SHIFTER ABILITIES //
-	["Titan Roar"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 0, Effect = "Confusion", Duration = 2, EnergyCost = 20, Cooldown = 5, Order = 10, Description = "A terrifying roar that confuses and disorients the enemy." },
-	["Hardened Punch"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 2.0, Effect = "Debuff_Defense", Duration = 2, EnergyCost = 30, Cooldown = 4, Order = 11, Description = "Focus crystal hardening into your knuckles to shatter enemy armor." },
-	["Nape Guard"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 0, Effect = "Buff_Defense", Duration = 3, EnergyCost = 40, Cooldown = 6, Order = 12, Description = "Harden the nape of your neck, massively increasing Defense." },
+	["Dual Slash"] = { Requirement = "Ultrahard Steel Blades", Type = "Style", Mult = 1.4, GasCost = 10, Cooldown = 0, Order = 8, SFX = "DualSlash", VFX = "SlashMark", Description = "A rapid double strike using both blades." },
+	["Blade Toss"] = { Requirement = "Ultrahard Steel Blades", Type = "Style", Mult = 1.8, Effect = "Bleed", Duration = 2, GasCost = 15, Cooldown = 3, Order = 9, SFX = "Dash", VFX = "SlashMark", Description = "Throw your blades like projectiles into the target's eyes." },
 
-	-- // SPECIFIC TITAN MOVES //
-	["Colossal Steam"] = { Requirement = "Colossal Titan", Type = "Titan", Mult = 1.5, Hits = 2, Effect = "Burn", Duration = 3, EnergyCost = 50, Cooldown = 7, Order = 13, Description = "Emit waves of scorching steam, burning anyone nearby." },
-	["Armored Tackle"] = { Requirement = "Armored Titan", Type = "Titan", Mult = 2.5, Effect = "Stun", Duration = 2, EnergyCost = 40, Cooldown = 5, Order = 13, Description = "A devastating, unstoppable charge that stuns the target." },
-	["War Hammer Spike"] = { Requirement = "War Hammer Titan", Type = "Titan", Mult = 2.8, Effect = "Bleed", Duration = 4, EnergyCost = 45, Cooldown = 5, Order = 13, Description = "Manifest a massive crystal spike from the ground to impale the enemy." },
-	["Coordinate Command"] = { Requirement = "Founding Titan", Type = "Titan", Mult = 3.5, Effect = "Stun", Duration = 3, EnergyCost = 80, Cooldown = 8, Order = 13, Description = "Command pure titans to swarm and crush the enemy completely." }
+	["Armor Piercer"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 1.8, Effect = "Debuff_Defense", Duration = 4, GasCost = 10, Cooldown = 5, Order = 8, SFX = "Gun", VFX = "ExplosionMark", Description = "A shaped charge that shreds the enemy's Defense for 4 turns." },
+	["Spear Volley"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 2.5, Effect = "Burn", Duration = 2, GasCost = 20, Cooldown = 4, Order = 9, ComboReq = "Armor Piercer", ComboMult = 1.5, SFX = "Explosion", VFX = "ExplosionMark", Description = "Fire a highly explosive payload that burns the enemy." },
+	["Reckless Barrage"] = { Requirement = "Thunder Spears", Type = "Style", Mult = 0.8, Hits = 4, GasCost = 30, Cooldown = 7, Order = 10, ComboReq = "Spear Volley", ComboMult = 1.3, SFX = "BigExplosion", VFX = "ExplosionMark", Description = "Unleash all your spears at once." },
+
+	["Ackerman Flurry"] = { Requirement = "Ackerman", Type = "Style", Mult = 0.6, Hits = 5, GasCost = 35, Cooldown = 4, Order = 15, SFX = "DualSlash", VFX = "SlashMark", Description = "A blindingly fast sequence of lethal strikes." },
+	["Swift Execution"] = { Requirement = "Ackerman", Type = "Style", Mult = 3.0, Effect = "Bleed", Duration = 3, GasCost = 45, Cooldown = 5, Order = 16, ComboReq = "Ackerman Flurry", ComboMult = 1.5, SFX = "HeavySlash", VFX = "SlashMark", Description = "A hyper-lethal strike to the nape." },
+	["God Speed"] = { Requirement = "Awakened Ackerman", Type = "Style", Mult = 1.0, Hits = 8, GasCost = 60, Effect = "Stun", Duration = 2, Cooldown = 6, Order = 17, SFX = "SpinSlash", VFX = "ClawMark", Description = "Move faster than the eye can see, shredding the target completely." },
+
+	["Titan Roar"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 0, Effect = "Confusion", Duration = 2, EnergyCost = 20, Cooldown = 5, Order = 10, SFX = "Roar", VFX = "BlockMark", Description = "A terrifying roar that confuses and disorients the enemy." },
+	["Hardened Punch"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 2.0, Effect = "Debuff_Defense", Duration = 2, EnergyCost = 30, Cooldown = 4, Order = 11, SFX = "HeavyPunch", VFX = "ExplosionMark", Description = "Focus crystal hardening into your knuckles to shatter enemy armor." },
+	["Nape Guard"] = { Requirement = "AnyTitan", Type = "Titan", Mult = 0, Effect = "Buff_Defense", Duration = 3, EnergyCost = 40, Cooldown = 6, Order = 12, SFX = "Block", VFX = "BlockMark", Description = "Harden the nape of your neck, massively increasing Defense." },
+
+	["Armored Tackle"] = { Requirement = "Armored Titan", Type = "Titan", Mult = 2.5, Effect = "Stun", Duration = 2, EnergyCost = 40, Cooldown = 5, Order = 13, SFX = "HeavyPunch", VFX = "ExplosionMark", Description = "A devastating, unstoppable charge that stuns the target." },
+	["War Hammer Spike"] = { Requirement = "War Hammer Titan", Type = "Titan", Mult = 2.8, Effect = "Bleed", Duration = 4, EnergyCost = 45, Cooldown = 5, Order = 13, ComboReq = "Hardened Punch", ComboMult = 1.4, SFX = "Spike", VFX = "SlashMark", Description = "Manifest a massive crystal spike to impale the enemy." },
+	["Colossal Steam"] = { Requirement = "Colossal Titan", Type = "Titan", Mult = 1.5, Hits = 2, Effect = "Burn", Duration = 3, EnergyCost = 50, Cooldown = 7, Order = 13, SFX = "Steam", VFX = "ExplosionMark", Description = "Emit waves of scorching steam, burning anyone nearby." },
+	["Coordinate Command"] = { Requirement = "Founding Titan", Type = "Titan", Mult = 3.5, Effect = "Stun", Duration = 3, EnergyCost = 80, Cooldown = 8, Order = 13, SFX = "Roar", VFX = "ClawMark", Description = "Command pure titans to swarm and crush the enemy completely." },
+
+	["Titan Grab"] = { Requirement = "Enemy", Type = "Titan", Mult = 1.2, Effect = "Stun", Duration = 1, Cooldown = 3, SFX = "Dash", VFX = "ClawMark", Description = "The Titan attempts to grab the target." },
+	["Titan Bite"] = { Requirement = "Enemy", Type = "Titan", Mult = 1.6, Effect = "Bleed", Duration = 2, Cooldown = 2, ComboReq = "Titan Grab", ComboMult = 1.5, SFX = "Bite", VFX = "ClawMark", Description = "A lethal bite targeting the head or torso." },
+	["Brutal Swipe"] = { Requirement = "Enemy", Type = "Titan", Mult = 1.0, SFX = "HeavyPunch", VFX = "SlashMark", Description = "A heavy, sweeping arm strike." },
+	["Frenzied Thrash"] = { Requirement = "Enemy", Type = "Titan", Mult = 0.5, Hits = 3, Cooldown = 3, SFX = "Punch", VFX = "ExplosionMark", Description = "An unpredictable, flailing attack." },
+	["Stomp"] = { Requirement = "Enemy", Type = "Titan", Mult = 2.0, Effect = "Stun", Duration = 1, Cooldown = 4, SFX = "Stomp", VFX = "ExplosionMark", Description = "A devastating stomp that crushes the target." },
+
+	["Heavy Slash"] = { Requirement = "Enemy", Type = "Basic", Mult = 1.8, Cooldown = 2, SFX = "HeavySlash", VFX = "SlashMark", Description = "A powerful, slow swing." },
+	["Block"] = { Requirement = "Enemy", Type = "Basic", Mult = 0, Effect = "Block", Cooldown = 2, SFX = "Block", VFX = "BlockMark", Description = "Defends against incoming damage." },
+	["Evasive Maneuver"] = { Requirement = "Enemy", Type = "Basic", Mult = 0, Effect = "Block", Cooldown = 2, SFX = "Dash", VFX = "BlockMark", Description = "Dodges incoming attacks." },
+	["Regroup"] = { Requirement = "Enemy", Type = "Basic", Mult = 0, Effect = "Rest", Cooldown = 3, SFX = "Heal", VFX = "HealMark", Description = "Steps back to heal." },
+	["Buckshot Spread"] = { Requirement = "Enemy", Type = "Basic", Mult = 0.7, Hits = 3, Cooldown = 3, SFX = "Gun", VFX = "ExplosionMark", Description = "Fires a wide spread of buckshot." },
+	["Grapple Shot"] = { Requirement = "Enemy", Type = "Basic", Mult = 1.2, Effect = "Stun", Duration = 1, Cooldown = 4, SFX = "Grapple", VFX = "SlashMark", Description = "Fires a grappling hook into the target." },
+	["Smoke Screen"] = { Requirement = "Enemy", Type = "Basic", Mult = 0, Effect = "Block", Cooldown = 3, SFX = "Steam", VFX = "BlockMark", Description = "Creates a smoke screen to evade attacks." },
+	["Anti-Titan Round"] = { Requirement = "Enemy", Type = "Basic", Mult = 2.5, Effect = "Bleed", Duration = 3, Cooldown = 4, SFX = "Sniper", VFX = "ExplosionMark", Description = "Fires a massive armor-piercing shell." },
+	["Knee Capper"] = { Requirement = "Enemy", Type = "Basic", Mult = 1.5, Effect = "Stun", Duration = 2, Cooldown = 4, SFX = "Gun", VFX = "SlashMark", Description = "Shoots the target's leg to cripple them." }
 }
 
 return SkillData
