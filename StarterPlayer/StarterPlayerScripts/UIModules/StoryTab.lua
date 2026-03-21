@@ -6,7 +6,6 @@ local player = game.Players.LocalPlayer
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Network = ReplicatedStorage:WaitForChild("Network")
 local EnemyData = require(ReplicatedStorage:WaitForChild("EnemyData"))
-local SFXManager = require(script.Parent:WaitForChild("SFXManager"))
 
 local randomEncounterBtn, storyEncounterBtn, prestigeBtn
 
@@ -63,23 +62,19 @@ function StoryTab.Init(parentFrame, tooltipMgr, focusFunc, passedModifierBubble)
 	storyEncounterBtn.LayoutOrder = 2
 
 	randomEncounterBtn.MouseButton1Click:Connect(function() 
-		SFXManager.Play("Click")
 		Network.CombatAction:FireServer("EngageRandom") 
 	end)
 
 	storyEncounterBtn.MouseButton1Click:Connect(function() 
-		SFXManager.Play("Click")
 		Network.CombatAction:FireServer("EngageStory") 
 	end)
 
 	prestigeBtn.MouseButton1Click:Connect(function() 
-		SFXManager.Play("Click")
 		Network.PrestigeEvent:FireServer() 
 	end)
 
 	local function UpdateStoryUI()
 		local currentPart = player:GetAttribute("CurrentPart") or 1
-		local currentMission = player:GetAttribute("CurrentMission") or 1
 		local prestigeObj = player:FindFirstChild("leaderstats") and player.leaderstats:FindFirstChild("Prestige")
 		local prestige = prestigeObj and prestigeObj.Value or 0
 
@@ -94,17 +89,12 @@ function StoryTab.Init(parentFrame, tooltipMgr, focusFunc, passedModifierBubble)
 		local partData = EnemyData.Parts[currentPart]
 		if partData then
 			local missionTable = (prestige > 0 and partData.PrestigeMissions) and partData.PrestigeMissions or partData.Missions
-			if currentMission <= #missionTable and missionTable[currentMission] then
-				storyEncounterBtn.Text = "Story: " .. missionTable[currentMission].Name
-			else
-				storyEncounterBtn.Text = "Story Encounter"
-			end
+			storyEncounterBtn.Text = "Story: " .. missionTable[1].Name
 		end
 	end
 
 	parentFrame:GetPropertyChangedSignal("Visible"):Connect(UpdateStoryUI)
 	player:GetAttributeChangedSignal("CurrentPart"):Connect(UpdateStoryUI)
-	player:GetAttributeChangedSignal("CurrentMission"):Connect(UpdateStoryUI)
 	UpdateStoryUI()
 end
 
