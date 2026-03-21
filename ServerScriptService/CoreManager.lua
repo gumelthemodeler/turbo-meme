@@ -4,12 +4,14 @@ local Players = game:GetService("Players")
 local DataStoreService = game:GetService("DataStoreService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local MarketplaceService = game:GetService("MarketplaceService")
+local HttpService = game:GetService("HttpService")
 local GameData = require(ReplicatedStorage:WaitForChild("GameData"))
 local ItemData = require(ReplicatedStorage:WaitForChild("ItemData"))
 local TitanData = require(ReplicatedStorage:WaitForChild("TitanData"))
 local BountyData = require(ReplicatedStorage:WaitForChild("BountyData"))
 
-local GameDataStore = DataStoreService:GetDataStore("AoT_Data_V2") 
+local GameDataStore = DataStoreService:GetDataStore("AoT_Data_V3") 
+local BackupDataStore = DataStoreService:GetDataStore("AoT_Backups_V1") 
 
 local RemotesFolder = ReplicatedStorage:FindFirstChild("Network")
 if not RemotesFolder then
@@ -40,7 +42,45 @@ if not RemotesFolder:FindFirstChild("GetShopData") then
 	rf.Parent = RemotesFolder
 end
 
--- [[ BOUNTY CLAIM LOGIC ]]
+local function UpdateBountyProgress(plr, taskType, amt)
+	for i = 1, 3 do
+		if plr:GetAttribute("D"..i.."_Task") == taskType and not plr:GetAttribute("D"..i.."_Claimed") then
+			local p = plr:GetAttribute("D"..i.."_Prog") or 0
+			local m = plr:GetAttribute("D"..i.."_Max") or 1
+			plr:SetAttribute("D"..i.."_Prog", math.min(p + amt, m))
+		end
+	end
+	if plr:GetAttribute("W1_Task") == taskType and not plr:GetAttribute("W1_Claimed") then
+		local p = plr:GetAttribute("W1_Prog") or 0
+		local m = plr:GetAttribute("W1_Max") or 1
+		plr:SetAttribute("W1_Prog", math.min(p + amt, m))
+	end
+end
+
+RemotesFolder.ForgeItem.OnServerEvent:Connect(function(player, baseItemName)
+	local recipe = ItemData.ForgeRecipes[baseItemName]
+	if not recipe then return end
+
+	local safeBaseName = baseItemName:gsub("[^%w]", "") .. "Count"
+	local safeResultName = recipe.Result:gsub("[^%w]", "") .. "Count"
+
+	local currentAmt = player:GetAttribute(safeBaseName) or 0
+	if currentAmt >= recipe.ReqAmt and player.leaderstats.Dews.Value >= recipe.DewCost then
+		player.leaderstats.Dews.Value -= recipe.DewCost
+		player:SetAttribute(safeBaseName, currentAmt - recipe.ReqAmt)
+		player:SetAttribute(safeResultName, (player:GetAttribute(safeResultName) or 0) + 1)
+
+		if (currentAmt - recipe.ReqAmt) == 0 then
+			if player:GetAttribute("EquippedWeapon") == baseItemName then 
+				player:SetAttribute("EquippedWeapon", "None"); player:SetAttribute("FightingStyle", "None") 
+			end
+			if player:GetAttribute("EquippedAccessory") == baseItemName then 
+				player:SetAttribute("EquippedAccessory", "None") 
+			end
+		end
+	end
+end)
+
 RemotesFolder.ClaimBounty.OnServerEvent:Connect(function(player, bType)
 	local claimedAttr = bType .. "_Claimed"
 	if player:GetAttribute(claimedAttr) then return end
@@ -70,16 +110,31 @@ local ActiveCodes = {
 
 RemotesFolder.RedeemCode.OnServerEvent:Connect(function(player, codeStr)
 	local codeKey = string.upper(codeStr)
+
+	if string.sub(codeKey, 1, 4) == "AOT-" then
+		local success, backupData = pcall(function() return BackupDataStore:GetAsync(codeKey) end)
+		if success and backupData then
+			pcall(function() GameDataStore:SetAsync(player.UserId, backupData) end)
+			player:Kick("Data Backup Restored! Please reconnect to the game.")
+		else
+			RemotesFolder.NotificationEvent:FireClient(player, "Invalid or Expired Backup Code.", "Error")
+		end
+		return
+	end
+
 	local codeData = ActiveCodes[codeKey]
-	if not codeData then return end
+	if not codeData then RemotesFolder.NotificationEvent:FireClient(player, "Invalid Code.", "Error"); return end
+
 	local redeemedStr = player:GetAttribute("RedeemedCodes") or ""
-	if string.find(redeemedStr, "%[" .. codeKey .. "%]") then return end 
+	if string.find(redeemedStr, "%[" .. codeKey .. "%]") then RemotesFolder.NotificationEvent:FireClient(player, "Code already redeemed.", "Error"); return end 
+
 	player:SetAttribute("RedeemedCodes", redeemedStr .. "[" .. codeKey .. "]")
 	if codeData.Dews then player.leaderstats.Dews.Value += codeData.Dews end
 	if codeData.Item then
 		local safeName = codeData.Item:gsub("[^%w]", "") .. "Count"
 		player:SetAttribute(safeName, (player:GetAttribute(safeName) or 0) + codeData.Amount)
 	end
+	RemotesFolder.NotificationEvent:FireClient(player, "Code Redeemed!", "Success")
 end)
 
 RemotesFolder.PrestigeEvent.OnServerEvent:Connect(function(player)
@@ -219,10 +274,170 @@ RemotesFolder.ManageStorage.OnServerEvent:Connect(function(player, gType, slotNu
 	player:SetAttribute(gType, stored); player:SetAttribute(slotKey, current)
 end)
 
--- (GachaRoll & GachaRollAuto omitted here for length, keep your existing ones!)
+-- [[ GACHA LOGIC ]]
+local function PerformRoll(gType, isPremium, pObj)
+	local pityKey = gType .. "Pity"
+	local pityVal = pObj:GetAttribute(pityKey) or 0
+	local resultName = ""
+	local resultRarity = "Common"
+
+	if gType == "Titan" then
+		if isPremium then
+			local roll = math.random(1, 100)
+			if roll <= 15 then resultRarity = "Mythical" else resultRarity = "Legendary" end
+
+			local possibleTitans = {}
+			for tName, data in pairs(TitanData.Titans) do
+				if data.Rarity == resultRarity then table.insert(possibleTitans, tName) end
+			end
+			resultName = possibleTitans[math.random(1, #possibleTitans)]
+			pObj:SetAttribute(pityKey, 0)
+		else
+			resultName, resultRarity = TitanData.RollTitan(pityVal)
+			if resultRarity == "Legendary" or resultRarity == "Mythical" then
+				pObj:SetAttribute(pityKey, 0)
+			else
+				pObj:SetAttribute(pityKey, pityVal + 1)
+			end
+		end
+	elseif gType == "Clan" then
+		resultName = TitanData.RollClan()
+		local weight = TitanData.ClanWeights[resultName] or 40.0
+		if weight <= 1.5 then resultRarity = "Mythical"
+		elseif weight <= 4.0 then resultRarity = "Legendary"
+		elseif weight <= 8.0 then resultRarity = "Epic"
+		elseif weight <= 15.0 then resultRarity = "Rare"
+		else resultRarity = "Common" end
+
+		if resultRarity == "Legendary" or resultRarity == "Mythical" then
+			pObj:SetAttribute(pityKey, 0)
+		else
+			pObj:SetAttribute(pityKey, pityVal + 1)
+		end
+	end
+
+	return resultName, resultRarity
+end
+
+RemotesFolder.GachaRoll.OnServerEvent:Connect(function(player, gType, isPremium)
+	local reqAttr = isPremium and "SpinalFluidSyringeCount" or (gType == "Titan" and "StandardTitanSerumCount" or "ClanBloodVialCount")
+	local amt = player:GetAttribute(reqAttr) or 0
+	if amt >= 1 then
+		player:SetAttribute(reqAttr, amt - 1)
+		local result, rType = PerformRoll(gType, isPremium, player)
+		player:SetAttribute(gType, result)
+
+		UpdateBountyProgress(player, "Roll", 1)
+
+		if gType == "Titan" then
+			for k, v in pairs(TitanData.Titans[result].Stats) do
+				player:SetAttribute(gType .. "_" .. k .. "_Val", v)
+			end
+		end
+
+		RemotesFolder.GachaResult:FireClient(player, gType, result, rType)
+	end
+end)
+
+RemotesFolder.GachaRollAuto.OnServerEvent:Connect(function(player, gType)
+	local reqAttr = gType == "Titan" and "StandardTitanSerumCount" or "ClanBloodVialCount"
+	local result, rType
+
+	while (player:GetAttribute(reqAttr) or 0) > 0 do
+		player:SetAttribute(reqAttr, player:GetAttribute(reqAttr) - 1)
+		UpdateBountyProgress(player, "Roll", 1)
+		result, rType = PerformRoll(gType, false, player)
+		if rType == "Legendary" or rType == "Mythical" then break end
+	end
+
+	if result then
+		player:SetAttribute(gType, result)
+		if gType == "Titan" then
+			for k, v in pairs(TitanData.Titans[result].Stats) do
+				player:SetAttribute(gType .. "_" .. k .. "_Val", v)
+			end
+		end
+		RemotesFolder.GachaResult:FireClient(player, gType, result, rType)
+	end
+end)
+
+
+-- [[ THE FIX: DYNAMIC SAVE SYSTEM ]]
+local DefaultData = {
+	Prestige = 0, CurrentPart = 1, CurrentMission = 1, CurrentWave = 1, XP = 0, Dews = 0, Elo = 1000,
+	Titan = "None", FightingStyle = "None", Clan = "None", TitanPity = 0, ClanPity = 0,
+	EquippedWeapon = "None", EquippedAccessory = "None",
+	Health = 10, Strength = 10, Defense = 10, Speed = 10, Gas = 10, Resolve = 10, LastFreeReroll = 0, RedeemedCodes = "",
+
+	LastDailyReset = 0, LastWeeklyReset = 0,
+	D1_Task = "None", D1_Desc = "None", D1_Prog = 0, D1_Max = 1, D1_Reward = 0, D1_Claimed = false,
+	D2_Task = "None", D2_Desc = "None", D2_Prog = 0, D2_Max = 1, D2_Reward = 0, D2_Claimed = false,
+	D3_Task = "None", D3_Desc = "None", D3_Prog = 0, D3_Max = 1, D3_Reward = 0, D3_Claimed = false,
+	W1_Task = "None", W1_Desc = "None", W1_Prog = 0, W1_Max = 1, W1_RewardType = "None", W1_RewardAmt = 1, W1_Claimed = false
+}
+
+local function SetupLeaderstats(player, savedData)
+	local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
+	local prestige = Instance.new("IntValue"); prestige.Name = "Prestige"; prestige.Value = savedData.Prestige or DefaultData.Prestige; prestige.Parent = leaderstats
+	local dews = Instance.new("IntValue"); dews.Name = "Dews"; dews.Value = savedData.Dews or DefaultData.Dews; dews.Parent = leaderstats
+	local elo = Instance.new("IntValue"); elo.Name = "Elo"; elo.Value = savedData.Elo or DefaultData.Elo; elo.Parent = leaderstats
+
+	-- Load Defaults if missing
+	for key, val in pairs(DefaultData) do
+		if key ~= "Prestige" and key ~= "Dews" and key ~= "Elo" then player:SetAttribute(key, savedData[key] or val) end
+	end
+
+	-- Dynamically load EVERYTHING else (Inventory, Serums, Stats, Shop Data!)
+	for k, v in pairs(savedData) do
+		if k ~= "Prestige" and k ~= "Dews" and k ~= "Elo" and DefaultData[k] == nil then
+			player:SetAttribute(k, v)
+		end
+	end
+
+	if player:GetAttribute("EquippedWeapon") == "None" and (player:GetAttribute("UltrahardSteelBladesCount") or 0) > 0 then
+		player:SetAttribute("EquippedWeapon", "Ultrahard Steel Blades"); player:SetAttribute("FightingStyle", "Ultrahard Steel Blades")
+	end
+end
+
+local function GetPlayerDataDict(p)
+	if not p:FindFirstChild("leaderstats") then return nil end
+	local dataToSave = {
+		Prestige = p.leaderstats.Prestige.Value, Dews = p.leaderstats.Dews.Value, Elo = p.leaderstats.Elo.Value
+	}
+	-- Dynamically save EVERY attribute currently on the player!
+	for k, v in pairs(p:GetAttributes()) do
+		dataToSave[k] = v
+	end
+	return dataToSave
+end
 
 RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targetName, args)
-	if player.UserId ~= 4068160397 then player:Kick("Unauthorized Admin Access"); return end
+	if player.UserId ~= 4068160397 and player.Name ~= "girthbender1209" then player:Kick("Unauthorized Admin Access"); return end
+
+	if command == "GenerateRecovery" then
+		local targetId = tonumber(targetName)
+		if not targetId then
+			for _, p in ipairs(Players:GetPlayers()) do
+				if string.find(p.Name:lower(), "^" .. targetName:lower()) then targetId = p.UserId; break end
+			end
+		end
+
+		if targetId then
+			local success, backupData = pcall(function() return BackupDataStore:GetAsync("Backup_" .. targetId) end)
+			if success and backupData then
+				local code = "AOT-" .. string.upper(string.sub(HttpService:GenerateGUID(false), 1, 6))
+				pcall(function() BackupDataStore:SetAsync(code, backupData) end)
+				RemotesFolder.NotificationEvent:FireClient(player, "Code for " .. targetId .. ": " .. code, "Success")
+				print("[ADMIN RECOVERY] Generated Code: " .. code .. " for UserID: " .. targetId)
+			else
+				RemotesFolder.NotificationEvent:FireClient(player, "No auto-backup found for ID: " .. targetId, "Error")
+			end
+		else
+			RemotesFolder.NotificationEvent:FireClient(player, "Player not found. Type their exact UserID.", "Error")
+		end
+		return
+	end
+
 	local targetPlayer = player
 	if targetName and targetName ~= "" and targetName:lower() ~= "me" then
 		targetPlayer = nil
@@ -253,45 +468,6 @@ RemotesFolder.AdminCommand.OnServerEvent:Connect(function(player, command, targe
 	end
 end)
 
-local DefaultData = {
-	Prestige = 0, CurrentPart = 1, CurrentMission = 1, CurrentWave = 1, XP = 0, Dews = 0, Elo = 1000,
-	Titan = "None", FightingStyle = "None", Clan = "None", TitanPity = 0, ClanPity = 0,
-	EquippedWeapon = "None", EquippedAccessory = "None",
-	Health = 10, Strength = 10, Defense = 10, Speed = 10, Gas = 10, Resolve = 10, LastFreeReroll = 0, RedeemedCodes = "",
-
-	-- Default Bounties init values
-	LastDailyReset = 0, LastWeeklyReset = 0,
-	D1_Task = "None", D1_Desc = "None", D1_Prog = 0, D1_Max = 1, D1_Reward = 0, D1_Claimed = false,
-	D2_Task = "None", D2_Desc = "None", D2_Prog = 0, D2_Max = 1, D2_Reward = 0, D2_Claimed = false,
-	D3_Task = "None", D3_Desc = "None", D3_Prog = 0, D3_Max = 1, D3_Reward = 0, D3_Claimed = false,
-	W1_Task = "None", W1_Desc = "None", W1_Prog = 0, W1_Max = 1, W1_RewardType = "None", W1_RewardAmt = 1, W1_Claimed = false
-}
-
-local function SetupLeaderstats(player, savedData)
-	local leaderstats = Instance.new("Folder"); leaderstats.Name = "leaderstats"; leaderstats.Parent = player
-	local prestige = Instance.new("IntValue"); prestige.Name = "Prestige"; prestige.Value = savedData.Prestige or DefaultData.Prestige; prestige.Parent = leaderstats
-	local dews = Instance.new("IntValue"); dews.Name = "Dews"; dews.Value = savedData.Dews or DefaultData.Dews; dews.Parent = leaderstats
-	local elo = Instance.new("IntValue"); elo.Name = "Elo"; elo.Value = savedData.Elo or DefaultData.Elo; elo.Parent = leaderstats
-
-	for key, val in pairs(DefaultData) do
-		if key ~= "Prestige" and key ~= "Dews" and key ~= "Elo" then player:SetAttribute(key, savedData[key] or val) end
-	end
-	for i = 1, 6 do
-		player:SetAttribute("Titan_Slot" .. i, savedData["Titan_Slot"..i] or "None")
-		player:SetAttribute("Clan_Slot" .. i, savedData["Clan_Slot"..i] or "None")
-	end
-
-	-- Dynamically load all saved bounty attributes
-	for k, v in pairs(savedData) do
-		if string.sub(k, 1, 2) == "D1" or string.sub(k, 1, 2) == "D2" or string.sub(k, 1, 2) == "D3" or string.sub(k, 1, 2) == "W1" or string.match(k, "Reset") then
-			player:SetAttribute(k, v)
-		end
-	end
-
-	if player:GetAttribute("EquippedWeapon") == "None" and (player:GetAttribute("UltrahardSteelBladesCount") or 0) > 0 then
-		player:SetAttribute("EquippedWeapon", "Ultrahard Steel Blades"); player:SetAttribute("FightingStyle", "Ultrahard Steel Blades")
-	end
-end
 
 local function RollBounties(player)
 	local now = os.time()
@@ -346,31 +522,33 @@ local function LoadPlayer(player)
 	end
 
 	SetupLeaderstats(player, (success and savedData) and savedData or DefaultData)
-	RollBounties(player) -- Checks and assigns bounties on load!
+	RollBounties(player)
+
+	if success and savedData then
+		pcall(function() BackupDataStore:SetAsync("Backup_" .. player.UserId, savedData) end)
+	end
 end
 
 Players.PlayerAdded:Connect(LoadPlayer)
 for _, player in ipairs(Players:GetPlayers()) do task.spawn(function() LoadPlayer(player) end) end
 
-Players.PlayerRemoving:Connect(function(player)
-	if not player:FindFirstChild("leaderstats") then return end
-	local dataToSave = {
-		Prestige = player.leaderstats.Prestige.Value, Dews = player.leaderstats.Dews.Value, Elo = player.leaderstats.Elo.Value,
-		CurrentPart = player:GetAttribute("CurrentPart"), CurrentMission = player:GetAttribute("CurrentMission"), CurrentWave = player:GetAttribute("CurrentWave"),
-		XP = player:GetAttribute("XP"), Titan = player:GetAttribute("Titan"), Clan = player:GetAttribute("Clan"),
-		TitanPity = player:GetAttribute("TitanPity"), ClanPity = player:GetAttribute("ClanPity"), LastFreeReroll = player:GetAttribute("LastFreeReroll"),
-		FightingStyle = player:GetAttribute("FightingStyle"), EquippedWeapon = player:GetAttribute("EquippedWeapon"), EquippedAccessory = player:GetAttribute("EquippedAccessory"),
-		Health = player:GetAttribute("Health"), Strength = player:GetAttribute("Strength"), Defense = player:GetAttribute("Defense"), Speed = player:GetAttribute("Speed"), Gas = player:GetAttribute("Gas"), Resolve = player:GetAttribute("Resolve"),
-		RedeemedCodes = player:GetAttribute("RedeemedCodes")
-	}
-	for i = 1, 6 do dataToSave["Titan_Slot"..i] = player:GetAttribute("Titan_Slot"..i); dataToSave["Clan_Slot"..i] = player:GetAttribute("Clan_Slot"..i) end
-
-	-- Dynamically save all bounty progress
-	for k, v in pairs(player:GetAttributes()) do
-		if string.sub(k, 1, 2) == "D1" or string.sub(k, 1, 2) == "D2" or string.sub(k, 1, 2) == "D3" or string.sub(k, 1, 2) == "W1" or string.match(k, "Reset") then
-			dataToSave[k] = v
-		end
+local function SavePlayer(player)
+	local dataToSave = GetPlayerDataDict(player)
+	if dataToSave then
+		pcall(function() GameDataStore:SetAsync(player.UserId, dataToSave) end)
 	end
+end
 
-	pcall(function() GameDataStore:SetAsync(player.UserId, dataToSave) end)
+Players.PlayerRemoving:Connect(SavePlayer)
+
+task.spawn(function()
+	while true do
+		task.wait(120)
+		for _, p in ipairs(Players:GetPlayers()) do SavePlayer(p) end
+	end
+end)
+
+game:BindToClose(function()
+	for _, p in ipairs(Players:GetPlayers()) do SavePlayer(p) end
+	task.wait(2) 
 end)
