@@ -144,6 +144,8 @@ function CombatTab.Init(parentFrame, tooltipMgr, switchTabFunc)
 	LeaveBtn.MouseButton1Click:Connect(function()
 		EffectsManager.PlaySFX("Click")
 		MainFrame.Visible = false; isBattleActive = false
+		parentFrame.Visible = true -- THE FIX: Shows the background menus again!
+
 		local topGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
 		if topGui then
 			if topGui:FindFirstChild("TopBar") then topGui.TopBar.Visible = true end
@@ -294,6 +296,8 @@ function CombatTab.Init(parentFrame, tooltipMgr, switchTabFunc)
 	Network:WaitForChild("CombatUpdate").OnClientEvent:Connect(function(action, data)
 		if action == "Start" then
 			MainFrame.Visible = true
+			parentFrame.Visible = false -- THE FIX: Hides the background menus during combat!
+
 			local topGui = parentFrame:FindFirstAncestorOfClass("ScreenGui")
 			if topGui then
 				if topGui:FindFirstChild("TopBar") then topGui.TopBar.Visible = false end
