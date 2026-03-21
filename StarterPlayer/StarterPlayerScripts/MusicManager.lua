@@ -3,21 +3,21 @@ local SoundService = game:GetService("SoundService")
 local ContentProvider = game:GetService("ContentProvider")
 
 local TRACK_IDS = {
-	134094755226119,
-	1846749782,
-	1846749640,
-	1846749192,
-	1846748840,
-	1837230263,
-	1846751619,
-	101659615219397,
-	1846748706,
-	1846749472,
-	1847245367
+	128410711216086,
+	138738069072406,
+	136984033293818,
+	136875724397582,
+	136931928031061,
+	136767646038064,
+	136341071155543,
+	135832906928044,
+	133379076510860,
+	132347366936691,
+	131809963961262
 }
 
 local bgmPlayer = Instance.new("Sound")
-bgmPlayer.Name = "BizarreBGM"
+bgmPlayer.Name = "AOTBackgroundSound"
 bgmPlayer.Volume = 0.4
 bgmPlayer.Parent = SoundService
 
