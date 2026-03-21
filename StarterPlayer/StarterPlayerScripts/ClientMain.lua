@@ -20,6 +20,7 @@ AOT_Interface.Parent = playerGui
 local WorldBlocker = Instance.new("Frame")
 WorldBlocker.Size = UDim2.new(1, 0, 1, 0); WorldBlocker.BackgroundColor3 = Color3.fromRGB(10, 10, 12); WorldBlocker.BorderSizePixel = 0; WorldBlocker.ZIndex = -10; WorldBlocker.Parent = AOT_Interface
 
+-- [[ TOP BAR ]]
 local TopBar = Instance.new("Frame")
 TopBar.Name = "TopBar"
 TopBar.Size = UDim2.new(1, 0, 0, 50); TopBar.Position = UDim2.new(0, 0, 0, -50); TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 18); TopBar.BorderSizePixel = 0; TopBar.ZIndex = 100; TopBar.Parent = AOT_Interface
@@ -42,14 +43,20 @@ local dewsLabel = CreateStatDisplay("Dews", "DEWS:", Color3.fromRGB(180, 220, 25
 local xpLabel = CreateStatDisplay("XP", "XP:", Color3.fromRGB(255, 215, 100))
 local prestigeLabel = CreateStatDisplay("Prestige", "PRESTIGE:", Color3.fromRGB(255, 100, 100))
 
+-- [[ CONTENT FRAME ]]
 local ContentFrame = Instance.new("Frame")
 ContentFrame.Name = "ContentFrame"; ContentFrame.Size = UDim2.new(1, -100, 1, -70); ContentFrame.Position = UDim2.new(0, 100, 0, 60); ContentFrame.BackgroundTransparency = 1; ContentFrame.Parent = AOT_Interface
 
-local NavBar = Instance.new("Frame")
-NavBar.Name = "NavBar"; NavBar.Size = UDim2.new(0, 80, 1, -50); NavBar.Position = UDim2.new(0, -80, 0, 50); NavBar.BackgroundColor3 = Color3.fromRGB(15, 15, 18); NavBar.BorderSizePixel = 0; NavBar.ZIndex = 100; NavBar.Parent = AOT_Interface
-Instance.new("UIStroke", NavBar).Color = Color3.fromRGB(120, 100, 60); NavBar.UIStroke.Thickness = 2; NavBar.UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
-local nbl = Instance.new("UIListLayout", NavBar); nbl.FillDirection = Enum.FillDirection.Vertical; nbl.HorizontalAlignment = Enum.HorizontalAlignment.Center; nbl.VerticalAlignment = Enum.VerticalAlignment.Top; nbl.Padding = UDim.new(0, 10)
-local nbp = Instance.new("UIPadding", NavBar); nbp.PaddingTop = UDim.new(0, 15)
+-- [[ STATIC PC SIDEBAR (NavWrapper fixes UIStroke Bug) ]]
+local NavWrapper = Instance.new("Frame")
+NavWrapper.Name = "NavWrapper"; NavWrapper.Size = UDim2.new(0, 80, 1, -50); NavWrapper.Position = UDim2.new(0, -80, 0, 50); NavWrapper.BackgroundColor3 = Color3.fromRGB(15, 15, 18); NavWrapper.BorderSizePixel = 0; NavWrapper.ZIndex = 100; NavWrapper.Parent = AOT_Interface
+Instance.new("UIStroke", NavWrapper).Color = Color3.fromRGB(120, 100, 60); NavWrapper.UIStroke.Thickness = 2; NavWrapper.UIStroke.ApplyStrokeMode = Enum.ApplyStrokeMode.Border
+
+local NavBar = Instance.new("ScrollingFrame")
+NavBar.Name = "NavBar"; NavBar.Size = UDim2.new(1, 0, 1, 0); NavBar.BackgroundTransparency = 1; NavBar.BorderSizePixel = 0; NavBar.Parent = NavWrapper
+NavBar.ScrollBarThickness = 0; NavBar.CanvasSize = UDim2.new(0, 0, 0, 0); NavBar.AutomaticCanvasSize = Enum.AutomaticSize.Y
+local nbl = Instance.new("UIListLayout", NavBar); nbl.FillDirection = Enum.FillDirection.Vertical; nbl.HorizontalAlignment = Enum.HorizontalAlignment.Center; nbl.Padding = UDim.new(0, 10)
+local nbp = Instance.new("UIPadding", NavBar); nbp.PaddingTop = UDim.new(0, 15); nbp.PaddingBottom = UDim.new(0, 15)
 
 local NavButtons = {}
 
@@ -58,7 +65,7 @@ local function CreateNavButton(name, text)
 	btn.Name = name .. "Btn"; btn.Size = UDim2.new(0, 60, 0, 60); btn.BackgroundColor3 = Color3.fromRGB(30, 30, 35); btn.Font = Enum.Font.GothamBlack; btn.TextColor3 = Color3.fromRGB(200, 200, 200); btn.TextScaled = true; btn.Text = text
 	Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
 	Instance.new("UIStroke", btn).Color = Color3.fromRGB(60, 60, 65)
-	Instance.new("UITextSizeConstraint", btn).MaxTextSize = 11
+	Instance.new("UITextSizeConstraint", btn).MaxTextSize = 10
 
 	btn.MouseEnter:Connect(function() TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(60, 50, 40), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play() end)
 	btn.MouseLeave:Connect(function()
@@ -67,26 +74,31 @@ local function CreateNavButton(name, text)
 	NavButtons[name] = btn; return btn
 end
 
--- NEW NAV SETUP
+local isAdmin = (player.UserId == 4068160397 or player.Name == "girthbender1209")
+
 CreateNavButton("Profile", "PROFILE")
 CreateNavButton("Inherit", "INHERIT")
 CreateNavButton("Stats", "STATS")
 CreateNavButton("Battle", "BATTLE")
 CreateNavButton("Shop", "SHOP")
+CreateNavButton("Forge", "FORGE")
+CreateNavButton("Bounties", "BOUNTIES")
 
-if player.UserId == 4068160397 then
+if isAdmin then
 	local adminBtn = CreateNavButton("Admin", "ADMIN")
 	adminBtn:FindFirstChildOfClass("UIStroke").Color = Color3.fromRGB(200, 50, 50)
 	adminBtn.TextColor3 = Color3.fromRGB(255, 100, 100)
 end
 
+-- [[ STARTUP ANIMATION ]]
 task.spawn(function()
 	task.wait(0.5)
 	TweenService:Create(TopBar, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 0)}):Play()
 	task.wait(0.2)
-	TweenService:Create(NavBar, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 50)}):Play()
+	TweenService:Create(NavWrapper, TweenInfo.new(0.8, Enum.EasingStyle.Exponential, Enum.EasingDirection.Out), {Position = UDim2.new(0, 0, 0, 50)}):Play()
 end)
 
+-- [[ STAT UPDATER ]]
 local function UpdateStats()
 	local leaderstats = player:FindFirstChild("leaderstats")
 	if leaderstats then
@@ -110,6 +122,7 @@ end)
 local ActiveTab = nil
 local TabModules = {}
 local TooltipManager = nil
+local NotificationManager = nil
 
 local function SwitchTab(tabName)
 	if ActiveTab == tabName then return end
@@ -136,11 +149,21 @@ for name, btn in pairs(NavButtons) do
 	btn.MouseButton1Click:Connect(function() SwitchTab(name) end)
 end
 
+-- [[ MODULE LOADER ]]
 task.spawn(function()
 	local uiModulesFolder = script.Parent:WaitForChild("UIModules", 5)
+
 	if uiModulesFolder then
 		TooltipManager = require(uiModulesFolder:WaitForChild("TooltipManager"))
 		TooltipManager.Init(AOT_Interface)
+
+		NotificationManager = require(uiModulesFolder:WaitForChild("NotificationManager"))
+		NotificationManager.Init(AOT_Interface)
+
+		local Network = ReplicatedStorage:WaitForChild("Network")
+		Network:WaitForChild("NotificationEvent").OnClientEvent:Connect(function(msg, msgType)
+			if NotificationManager then NotificationManager.Show(msg, msgType) end
+		end)
 
 		TabModules["Profile"] = require(uiModulesFolder:WaitForChild("ProfileTab"))
 		TabModules["Profile"].Init(ContentFrame, TooltipManager)
@@ -160,11 +183,13 @@ task.spawn(function()
 		TabModules["Shop"] = require(uiModulesFolder:WaitForChild("ShopTab"))
 		TabModules["Shop"].Init(ContentFrame, TooltipManager)
 
-		-- THE FIX: Bounties initialization added here!
 		TabModules["Bounties"] = require(uiModulesFolder:WaitForChild("BountiesTab"))
 		TabModules["Bounties"].Init(ContentFrame, TooltipManager)
 
-		if player.UserId == 4068160397 then
+		TabModules["Forge"] = require(uiModulesFolder:WaitForChild("ForgeTab"))
+		TabModules["Forge"].Init(ContentFrame, TooltipManager)
+
+		if isAdmin then
 			TabModules["Admin"] = require(uiModulesFolder:WaitForChild("AdminTab"))
 			TabModules["Admin"].Init(ContentFrame)
 		end
