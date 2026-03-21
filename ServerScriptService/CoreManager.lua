@@ -23,7 +23,7 @@ local requiredRemotes = {
 	"NotificationEvent", "DungeonUpdate", "WorldBossUpdate", "WorldBossAction", 
 	"RaidAction", "RaidUpdate", "ToggleTraining", "ShopAction", "ShopUpdate",
 	"UpgradeStat", "TrainAction", "EquipItem", "SellItem", "AutoSell", "AdminCommand",
-	"GachaRoll", "GachaRollAuto", "GachaResult", "AwakenAction", "ManageStorage", "VIPFreeReroll", "RedeemCode", "ClaimBounty"
+	"GachaRoll", "GachaRollAuto", "GachaResult", "AwakenAction", "ManageStorage", "VIPFreeReroll", "RedeemCode", "ClaimBounty", "ForgeItem"
 }
 
 for _, remoteName in ipairs(requiredRemotes) do
@@ -64,7 +64,7 @@ end)
 
 local ActiveCodes = {
 	["RELEASE"] = { Dews = 5000 },
-	["GIRTHBENDER"] = { Item = "Spinal Fluid Syringe", Amount = 1 },
+	["ATTACKONTITAN"] = { Item = "Spinal Fluid Syringe", Amount = 1 },
 	["TITAN"] = { Item = "Standard Titan Serum", Amount = 3 }
 }
 
