@@ -13,14 +13,11 @@ local player = Players.LocalPlayer
 local MainFrame
 local cachedTooltipMgr
 
-local playerStatsList = {"Health", "Strength", "Defense", "Speed", "Stamina", "Willpower"}
+local playerStatsList = {"Health", "Strength", "Defense", "Speed", "Gas", "Resolve"}
 local titanStatsList = {"Titan_Power_Val", "Titan_Speed_Val", "Titan_Hardening_Val", "Titan_Endurance_Val", "Titan_Precision_Val", "Titan_Potential_Val"}
 local statRowRefs = {}
 
-local isTraining = false
-local trainBarFill, trainLog, toggleTrainBtn
-local currentTween
-local trainTweenInfo = TweenInfo.new(4.8, Enum.EasingStyle.Linear)
+local trainCombo = 0
 
 local function GetCombinedBonus(statName)
 	local wpn = player:GetAttribute("EquippedWeapon") or "None"
@@ -122,19 +119,11 @@ local function CreateStatRow(statName, parent, isTitan)
 	statRowRefs[statName] = { Label = statLabel, Btn1 = b1, Btn5 = b5, Btn10 = b10, BtnMax = bMax }
 end
 
-local function PlayTrainingTween()
-	if currentTween and currentTween.PlaybackState == Enum.PlaybackState.Playing then return end
-	trainBarFill.Size = UDim2.new(0, 0, 1, 0)
-	currentTween = TweenService:Create(trainBarFill, trainTweenInfo, {Size = UDim2.new(1, 0, 1, 0)})
-	currentTween:Play()
-end
-
 function StatsTab.Init(parentFrame, tooltipMgr)
 	cachedTooltipMgr = tooltipMgr
 	MainFrame = Instance.new("Frame", parentFrame)
 	MainFrame.Size = UDim2.new(1, 0, 1, 0); MainFrame.BackgroundTransparency = 1; MainFrame.Visible = false
 
-	-- [[ TOP HALF: STATS (60% Height) ]]
 	local StatsArea = Instance.new("Frame", MainFrame)
 	StatsArea.Size = UDim2.new(1, 0, 0.6, 0); StatsArea.BackgroundTransparency = 1
 
@@ -162,54 +151,79 @@ function StatsTab.Init(parentFrame, tooltipMgr)
 	SetupPanel(leftPanel, "SOLDIER VITALITY", playerStatsList, false)
 	SetupPanel(rightPanel, "TITAN POTENTIAL", titanStatsList, true)
 
-	-- [[ BOTTOM HALF: TRAINING (35% Height) ]]
 	local TrainArea = Instance.new("Frame", MainFrame)
-	TrainArea.Size = UDim2.new(1, 0, 0.35, 0); TrainArea.Position = UDim2.new(0, 0, 0.65, 0); TrainArea.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
+	TrainArea.Size = UDim2.new(1, 0, 0.35, 0); TrainArea.Position = UDim2.new(0, 0, 0.65, 0); TrainArea.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	Instance.new("UICorner", TrainArea).CornerRadius = UDim.new(0, 8)
-	Instance.new("UIStroke", TrainArea).Color = Color3.fromRGB(80, 80, 90)
+	Instance.new("UIStroke", TrainArea).Color = Color3.fromRGB(120, 100, 60)
 
-	local tTitle = Instance.new("TextLabel", TrainArea)
-	tTitle.Size = UDim2.new(1, 0, 0, 40); tTitle.Position = UDim2.new(0, 0, 0, 5); tTitle.BackgroundTransparency = 1
-	tTitle.Font = Enum.Font.GothamBlack; tTitle.TextColor3 = Color3.fromRGB(255, 215, 100); tTitle.TextSize = 20; tTitle.Text = "MILITARY TRAINING GROUNDS"
+	local ComboLabel = Instance.new("TextLabel", TrainArea)
+	ComboLabel.Size = UDim2.new(1, -20, 0, 30)
+	ComboLabel.Position = UDim2.new(0, 10, 0, 10)
+	ComboLabel.BackgroundTransparency = 1
+	ComboLabel.Font = Enum.Font.GothamBlack
+	ComboLabel.TextColor3 = Color3.fromRGB(255, 215, 100)
+	ComboLabel.TextSize = 22
+	ComboLabel.TextXAlignment = Enum.TextXAlignment.Right
+	ComboLabel.Text = ""
 
-	local trainBarBg = Instance.new("Frame", TrainArea)
-	trainBarBg.Size = UDim2.new(0.6, 0, 0, 20); trainBarBg.Position = UDim2.new(0.2, 0, 0.35, 0); trainBarBg.BackgroundColor3 = Color3.fromRGB(40, 40, 45)
-	Instance.new("UICorner", trainBarBg).CornerRadius = UDim.new(1, 0)
-	trainBarFill = Instance.new("Frame", trainBarBg)
-	trainBarFill.Size = UDim2.new(0, 0, 1, 0); trainBarFill.BackgroundColor3 = Color3.fromRGB(50, 200, 50)
-	Instance.new("UICorner", trainBarFill).CornerRadius = UDim.new(1, 0)
+	math.randomseed(os.time())
 
-	trainLog = Instance.new("TextLabel", TrainArea)
-	trainLog.Size = UDim2.new(1, 0, 0, 30); trainLog.Position = UDim2.new(0, 0, 0.5, 0)
-	trainLog.BackgroundTransparency = 1; trainLog.Font = Enum.Font.GothamMedium; trainLog.TextColor3 = Color3.fromRGB(180, 180, 180); trainLog.TextSize = 14; trainLog.RichText = true
-	trainLog.Text = "Resting. Start training to gain passive XP and Dews."
+	local TrainBtn = Instance.new("TextButton", TrainArea)
+	TrainBtn.Size = UDim2.new(0, 260, 0, 80)
+	TrainBtn.Position = UDim2.new(0.5, 0, 0.5, 0)
+	TrainBtn.AnchorPoint = Vector2.new(0.5, 0.5)
+	TrainBtn.BackgroundColor3 = Color3.fromRGB(80, 220, 80)
+	TrainBtn.Font = Enum.Font.GothamBlack
+	TrainBtn.TextColor3 = Color3.fromRGB(20, 50, 20)
+	TrainBtn.TextSize = 30
+	TrainBtn.Text = "TRAIN!"
+	Instance.new("UICorner", TrainBtn).CornerRadius = UDim.new(0, 12)
+	Instance.new("UIStroke", TrainBtn).Color = Color3.fromRGB(40, 120, 40)
+	Instance.new("UIStroke", TrainBtn).Thickness = 4
 
-	toggleTrainBtn = Instance.new("TextButton", TrainArea)
-	toggleTrainBtn.Size = UDim2.new(0.3, 0, 0, 40); toggleTrainBtn.Position = UDim2.new(0.35, 0, 0.7, 0)
-	toggleTrainBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 40); toggleTrainBtn.Font = Enum.Font.GothamBold; toggleTrainBtn.TextColor3 = Color3.new(1,1,1); toggleTrainBtn.TextSize = 16; toggleTrainBtn.Text = "START TRAINING"
-	Instance.new("UICorner", toggleTrainBtn).CornerRadius = UDim.new(0, 6)
+	local function CreateFloatingText(textStr, color, startPos)
+		local fTxt = Instance.new("TextLabel", TrainArea)
+		fTxt.Size = UDim2.new(0, 100, 0, 30)
+		fTxt.Position = startPos
+		fTxt.AnchorPoint = Vector2.new(0.5, 0.5)
+		fTxt.BackgroundTransparency = 1
+		fTxt.Font = Enum.Font.GothamBlack
+		fTxt.TextColor3 = color
+		fTxt.TextSize = 24
+		fTxt.Text = textStr
 
-	toggleTrainBtn.MouseButton1Click:Connect(function()
-		isTraining = not isTraining
-		if isTraining then
-			toggleTrainBtn.Text = "STOP TRAINING"; toggleTrainBtn.BackgroundColor3 = Color3.fromRGB(140, 40, 40)
-			trainLog.Text = "<font color='#55FF55'>Drills started... Pushing limits!</font>"
-			PlayTrainingTween()
-		else
-			toggleTrainBtn.Text = "START TRAINING"; toggleTrainBtn.BackgroundColor3 = Color3.fromRGB(40, 80, 40)
-			trainLog.Text = "Resting. Start training to gain passive XP and Dews."
-			trainBarFill.Size = UDim2.new(0, 0, 1, 0)
-			if currentTween then currentTween:Cancel() end
-		end
-		Network.ToggleTraining:FireServer(isTraining)
-	end)
+		TweenService:Create(fTxt, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+			Position = fTxt.Position - UDim2.new(0, 0, 0.15, 0),
+			TextTransparency = 1
+		}):Play()
 
-	task.spawn(function() while task.wait(5) do if isTraining then PlayTrainingTween() end end end)
+		game.Debris:AddItem(fTxt, 0.6)
+	end
 
-	Network:WaitForChild("CombatUpdate").OnClientEvent:Connect(function(action, data)
-		if action == "TrainingTick" and isTraining then
-			trainLog.Text = "<font color='#55FFFF'>Gained +" .. data.XP .. " XP</font> and <font color='#55FF55'>+" .. data.Dews .. " Dews</font>."
-		end
+	TrainBtn.MouseButton1Down:Connect(function()
+		local currentPos = TrainBtn.Position
+
+		trainCombo += 1
+		local bonus = math.floor(trainCombo / 10) 
+		if trainCombo > 1 then ComboLabel.Text = "x" .. trainCombo .. " COMBO!" end
+
+		-- THE FIX: Mirrors the new dynamic server math to display accurate XP numbers!
+		local prestige = player:WaitForChild("leaderstats") and player.leaderstats:FindFirstChild("Prestige") and player.leaderstats.Prestige.Value or 0
+		local totalStats = (player:GetAttribute("Strength") or 10) + (player:GetAttribute("Defense") or 10) + (player:GetAttribute("Speed") or 10) + (player:GetAttribute("Resolve") or 10)
+		local baseXP = 1 + (prestige * 50) + math.floor(totalStats / 4)
+		local xpGain = math.floor(baseXP * (1 + bonus))
+
+		local floatPos = currentPos + UDim2.new(0, math.random(-80, 80), 0, math.random(-40, 40))
+		CreateFloatingText("+" .. xpGain .. " XP", Color3.fromRGB(100, 255, 100), floatPos)
+
+		TrainBtn.Size = UDim2.new(0, 245, 0, 75)
+		TweenService:Create(TrainBtn, TweenInfo.new(0.15, Enum.EasingStyle.Bounce, Enum.EasingDirection.Out), {Size = UDim2.new(0, 260, 0, 80)}):Play()
+
+		local randX = math.random(15, 85) / 100
+		local randY = math.random(30, 80) / 100
+		TrainBtn.Position = UDim2.new(randX, 0, randY, 0)
+
+		Network.TrainAction:FireServer(bonus)
 	end)
 
 	local function UpdateStats()
