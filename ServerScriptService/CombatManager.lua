@@ -21,7 +21,6 @@ local CombatUpdate = GetRemote("CombatUpdate")
 
 local ActiveBattles = {}
 
--- THE FIX: Universal Bounty Progress Tracker
 local function UpdateBountyProgress(plr, taskType, amt)
 	for i = 1, 3 do
 		if plr:GetAttribute("D"..i.."_Task") == taskType and not plr:GetAttribute("D"..i.."_Claimed") then
@@ -37,7 +36,6 @@ local function UpdateBountyProgress(plr, taskType, amt)
 	end
 end
 
--- (GetTemplate, GetHPScale, GetActualStyle removed for brevity. Keep your existing ones!)
 local function GetTemplate(partData, templateName)
 	if partData.Templates and partData.Templates[templateName] then return partData.Templates[templateName] end
 	for _, mob in ipairs(partData.Mobs) do if mob.Name == templateName then return mob end end
@@ -157,7 +155,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 	if (battle.Player.Gas or 0) < (skill.GasCost or 0) then return end
 	battle.IsProcessing = true
 
-	-- Tracker hooks!
 	if skillName == "Maneuver" then UpdateBountyProgress(player, "Maneuver", 1) end
 	if skillName == "Transform" then UpdateBountyProgress(player, "Transform", 1) end
 
@@ -205,7 +202,6 @@ CombatAction.OnServerEvent:Connect(function(player, actionType, actionData)
 		ActiveBattles[player.UserId] = nil
 	elseif battle.Enemy.HP < 1 then
 
-		-- Tracker Hooks! Kills and Clears.
 		UpdateBountyProgress(player, "Kill", 1)
 		UpdateBountyProgress(player, "Clear", 1)
 
