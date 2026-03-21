@@ -36,8 +36,22 @@ GetShopData.OnServerInvoke = function(player)
 		personalSeed = globalSeed
 	end
 
+	local activeSeed = player:GetAttribute("PersonalShopSeed") or globalSeed
+	if player:GetAttribute("ShopPurchases_Seed") ~= activeSeed then
+		player:SetAttribute("ShopPurchases_Seed", activeSeed)
+		player:SetAttribute("ShopPurchases_Data", "") -- Reset bought items on new shop rotation
+	end
+
 	local timeRemaining = 600 - (os.time() % 600)
 	local items = GenerateShopItems(personalSeed)
+
+	-- Mark items as sold out if the player already bought them in this rotation
+	local boughtStr = player:GetAttribute("ShopPurchases_Data") or ""
+	for _, item in ipairs(items) do
+		if string.find(boughtStr, "%[" .. item.Name .. "%]") then
+			item.SoldOut = true
+		end
+	end
 
 	return { Items = items, TimeLeft = timeRemaining }
 end
@@ -53,15 +67,19 @@ BuyAction.OnServerEvent:Connect(function(player, itemName)
 	end
 
 	if targetItem then
+		local boughtStr = player:GetAttribute("ShopPurchases_Data") or ""
+		if string.find(boughtStr, "%[" .. targetItem.Name .. "%]") then return end -- Block double purchase!
+
 		if player.leaderstats.Dews.Value >= targetItem.Cost then
 			player.leaderstats.Dews.Value -= targetItem.Cost
 			local attrName = itemName:gsub("[^%w]", "") .. "Count"
 			player:SetAttribute(attrName, (player:GetAttribute(attrName) or 0) + 1)
+
+			player:SetAttribute("ShopPurchases_Data", boughtStr .. "[" .. targetItem.Name .. "]")
 		end
 	end
 end)
 
--- THE FIX: Dynamic Receipt Processor mapping directly from ItemData!
 MarketplaceService.ProcessReceipt = function(receiptInfo)
 	local player = Players:GetPlayerByUserId(receiptInfo.PlayerId)
 	if not player then return Enum.ProductPurchaseDecision.NotProcessedYet end
