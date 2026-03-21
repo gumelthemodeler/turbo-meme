@@ -160,6 +160,10 @@ task.spawn(function()
 		TabModules["Shop"] = require(uiModulesFolder:WaitForChild("ShopTab"))
 		TabModules["Shop"].Init(ContentFrame, TooltipManager)
 
+		-- THE FIX: Bounties initialization added here!
+		TabModules["Bounties"] = require(uiModulesFolder:WaitForChild("BountiesTab"))
+		TabModules["Bounties"].Init(ContentFrame, TooltipManager)
+
 		if player.UserId == 4068160397 then
 			TabModules["Admin"] = require(uiModulesFolder:WaitForChild("AdminTab"))
 			TabModules["Admin"].Init(ContentFrame)
